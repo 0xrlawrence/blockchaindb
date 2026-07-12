@@ -58,7 +58,7 @@ export default function DitherCover() {
       <div className="absolute inset-0" style={{ filter: "invert(1)" }}>
         <Dither
           waveColor={[1, 1, 1]}
-          waveSpeed={0.08}
+          waveSpeed={0.14}
           waveFrequency={2.6}
           waveAmplitude={0.35}
           colorNum={4}

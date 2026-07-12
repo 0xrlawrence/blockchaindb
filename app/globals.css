@@ -206,7 +206,8 @@ body {
   text-transform: lowercase;
 }
 
-/* Page title: pixel display, lowercase */
+/* Page title: pixel display, lowercase; soft white halo keeps it crisp
+   over the dotted backdrop */
 .bryl-title {
   font-family: var(--font-geist-pixel-square), var(--font-geist-mono),
     ui-monospace, monospace;
@@ -214,6 +215,9 @@ body {
   font-weight: 400;
   line-height: 1;
   text-transform: lowercase;
+  text-shadow:
+    0 0 6px var(--bg),
+    0 0 14px var(--bg);
 }
 
 /* Wireframe card: hairline border, compact padding */
@@ -267,6 +271,7 @@ a.bryl-card:active {
   gap: 6px;
   border: 1px solid var(--gray-300);
   border-radius: 9999px;
+  background: var(--bg);
   padding: 3px 10px;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 0.625rem;
@@ -297,16 +302,53 @@ a.bryl-card:active {
   text-decoration-color: var(--ink);
 }
 
-/* Halftone dot matrix, edge-faded */
-.bryl-halftone {
-  color: var(--halftone);
-  background-image: radial-gradient(circle, currentColor 1px, transparent 1px);
+/* Halftone dot matrix as a full-page backdrop — styled, not wallpaper.
+   Fixed layer: dots bloom from the top (biased right, behind the title
+   row) and dissolve well before the workspace; a fainter, denser echo
+   rises from the bottom-left corner. The content column sits above it. */
+.bryl-dotbg,
+.bryl-dotbg::after {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(
+    circle,
+    rgba(10, 10, 10, 0.5) 1px,
+    transparent 1px
+  );
   background-size: 9px 9px;
-  -webkit-mask-image: radial-gradient(ellipse at center, black 0%, transparent 85%);
-  mask-image: radial-gradient(ellipse at center, black 0%, transparent 85%);
 }
-.bryl-halftone--dense {
+.bryl-dotbg {
+  -webkit-mask-image: radial-gradient(
+    ellipse 120% 65% at 70% -12%,
+    black 25%,
+    transparent 68%
+  );
+  mask-image: radial-gradient(
+    ellipse 120% 65% at 70% -12%,
+    black 25%,
+    transparent 68%
+  );
+}
+.bryl-dotbg::after {
+  content: "";
+  background-image: radial-gradient(
+    circle,
+    rgba(10, 10, 10, 0.35) 1px,
+    transparent 1px
+  );
   background-size: 6px 6px;
+  -webkit-mask-image: radial-gradient(
+    ellipse 70% 45% at 8% 108%,
+    black 30%,
+    transparent 75%
+  );
+  mask-image: radial-gradient(
+    ellipse 70% 45% at 8% 108%,
+    black 30%,
+    transparent 75%
+  );
 }
 
 /* Compact wireframe table (recent documents) */

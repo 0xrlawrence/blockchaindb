@@ -387,8 +387,9 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="bryl min-h-screen">
-      <div className="mx-auto max-w-[56rem] px-4 py-6 sm:px-6">
+    <div className="bryl relative min-h-screen">
+      <div aria-hidden className="bryl-dotbg" />
+      <div className="relative z-[1] mx-auto max-w-[56rem] px-4 py-6 sm:px-6">
         {/* header: wordmark · testnet/mainnet toggle · network dropdown · live pill */}
         <header
           className="bryl-fade-up flex flex-wrap items-center justify-between gap-3"
@@ -458,11 +459,7 @@ export default function DashboardPage() {
         </header>
 
         {/* title */}
-        <div className="bryl-fade-up relative mt-8" style={fade(1)}>
-          <div
-            aria-hidden
-            className="bryl-halftone absolute -top-6 right-0 h-20 w-52 sm:w-72"
-          />
+        <div className="bryl-fade-up mt-8" style={fade(1)}>
           <h1 className="bryl-title text-[2rem] sm:text-[2.5rem]">dashboard</h1>
           <p className="bryl-label mt-2">the blockchain is your database</p>
         </div>
@@ -538,7 +535,7 @@ export default function DashboardPage() {
 
           {/* ---- collections ---- */}
           {tab === "collections" && (
-            <div key="collections" className="bryl-panel bryl-card bg-transparent p-4">
+            <div key="collections" className="bryl-panel bryl-card bg-white p-4">
               <form onSubmit={createCollection} className="mb-4 flex gap-2">
                 <input
                   className="bryl-input flex-1"
@@ -602,7 +599,7 @@ export default function DashboardPage() {
 
           {/* ---- documents ---- */}
           {tab === "documents" && (
-            <div key="documents" className="bryl-panel bryl-card bg-transparent p-4">
+            <div key="documents" className="bryl-panel bryl-card bg-white p-4">
               <div className="mb-4 flex flex-wrap items-center gap-2">
                 <select
                   className="bryl-select"
@@ -729,7 +726,7 @@ export default function DashboardPage() {
 
           {/* ---- network ---- */}
           {tab === "network" && (
-            <div key="network" className="bryl-panel bryl-card overflow-x-auto bg-transparent p-4">
+            <div key="network" className="bryl-panel bryl-card overflow-x-auto bg-white p-4">
               <table className="bryl-table">
                 <tbody>
                   {(
@@ -819,7 +816,7 @@ export default function DashboardPage() {
 
           {/* ---- settings ---- */}
           {tab === "settings" && (
-            <div key="settings" className="bryl-panel bryl-card bg-transparent p-4">
+            <div key="settings" className="bryl-panel bryl-card bg-white p-4">
               <form onSubmit={saveSettings} className="flex flex-col gap-4">
                 <div>
                   <label className="bryl-label mb-1.5 block">

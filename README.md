@@ -13,11 +13,11 @@ Solidity knowledge required.
 
 ## Deploy your own
 
-> Replace `YOUR_GH_USERNAME/blockchaindb` with your repo, then use these buttons
+> Replace `0xrlawrence/blockchaindb` with your repo, then use these buttons
 > (they're also on the in-app **API** page):
 
-[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/YOUR_GH_USERNAME/blockchaindb&env=RPC_URL,PRIVATE_KEY,CONTRACT_ADDRESS,API_KEY)
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/YOUR_GH_USERNAME/blockchaindb)
+[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/0xrlawrence/blockchaindb&env=RPC_URL,PRIVATE_KEY,CONTRACT_ADDRESS,API_KEY)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/0xrlawrence/blockchaindb)
 
 Set `RPC_URL`, `PRIVATE_KEY`, `CONTRACT_ADDRESS`, and (optional) `API_KEY` when
 the host prompts. **Note:** serverless hosts (Vercel/Netlify) have a read-only

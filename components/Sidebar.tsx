@@ -35,7 +35,7 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+              className={`pressable flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${
                 active
                   ? "bg-brand-faint font-medium text-brand"
                   : "text-ink-soft hover:bg-base-raised hover:text-ink"

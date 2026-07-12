@@ -53,7 +53,7 @@ export default function Navbar() {
         <span className="flex items-center gap-2 rounded-full border border-base-border bg-base-raised px-3 py-1.5 text-xs font-medium">
           <span
             className={`h-2 w-2 rounded-full ${
-              connected ? "bg-brand" : "bg-red-500"
+              connected ? "dot-pulse bg-brand" : "bg-red-500"
             }`}
           />
           {status === null

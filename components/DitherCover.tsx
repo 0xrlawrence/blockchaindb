@@ -2,10 +2,10 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Space_Grotesk, Orbitron } from "next/font/google";
+import { Space_Grotesk, Stalinist_One } from "next/font/google";
 
 const display = Space_Grotesk({ subsets: ["latin"], weight: ["500", "700"] });
-const brand = Orbitron({ subsets: ["latin"], weight: ["700", "800"] });
+const brand = Stalinist_One({ subsets: ["latin"], weight: ["400"] });
 
 // WebGL canvas — client-only, never server-rendered.
 const Dither = dynamic(() => import("./Dither"), { ssr: false });
@@ -70,12 +70,12 @@ export default function DitherCover() {
       </div>
 
       {/* top glass pills */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-col items-center gap-4 px-6 pt-14 sm:pt-20">
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-5 px-6 text-center">
         <span
-          className={`${brand.className} text-3xl font-extrabold tracking-tight !text-white sm:text-5xl`}
+          className={`${brand.className} text-2xl tracking-tight !text-white sm:text-4xl`}
           style={{ textShadow: strongShadow }}
         >
-          BlockchainDB
+          StarBoarDB
         </span>
 
         <span

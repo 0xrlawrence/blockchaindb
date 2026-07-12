@@ -66,6 +66,103 @@ body {
   color: #e8ecf8;
 }
 
+/* ---- Dashboard motion ----
+   Crisp, fast motion: strong custom curves, sub-300ms durations,
+   transform/opacity only. Tokens shared by every dashboard surface. */
+:root {
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+/* Interactive surfaces: instant press feedback + specified-property
+   transitions (never `transition: all`). */
+.pressable {
+  transition:
+    transform 160ms var(--ease-out-strong),
+    color 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+.pressable:active {
+  transform: scale(0.97);
+}
+
+/* Staggered entrance: rise + fade, never from nothing. `backwards` fill
+   (not `forwards`) so the finished animation stops applying and :active
+   transforms still work. Delay via --rise-delay index, 40ms apart. */
+.rise {
+  animation: rise-in 300ms var(--ease-out-strong) backwards;
+  animation-delay: calc(var(--rise-delay, 0) * 40ms);
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Loading skeleton with a shimmer sweep (linear: constant motion) */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #181c26;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(232, 236, 248, 0.07),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: shimmer 1.6s linear infinite;
+}
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Live connection dot: gentle ambient pulse */
+.dot-pulse {
+  animation: dot-pulse 2.4s ease-in-out infinite;
+}
+@keyframes dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Reduced motion: keep opacity fades that aid comprehension, drop movement */
+@media (prefers-reduced-motion: reduce) {
+  .pressable:active {
+    transform: none;
+  }
+  .rise {
+    animation: fade-in 200ms ease backwards;
+    animation-delay: 0ms;
+  }
+  .skeleton::after {
+    animation: none;
+  }
+  .dot-pulse {
+    animation: none;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
 /* Dashboard scrollbars */
 .app-shell ::-webkit-scrollbar {
   width: 10px;

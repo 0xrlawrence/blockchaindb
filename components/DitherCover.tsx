@@ -70,7 +70,14 @@ export default function DitherCover() {
       </div>
 
       {/* top glass pills */}
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-5 px-6 text-center">
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/starboar.webp"
+          alt="StarBoarDB"
+          className="h-24 w-24 sm:h-32 sm:w-32"
+          style={{ filter: "drop-shadow(0 0 10px rgba(255,255,255,0.5))" }}
+        />
         <span
           className={`${brand.className} text-2xl tracking-tight !text-white sm:text-4xl`}
           style={{ textShadow: strongShadow }}

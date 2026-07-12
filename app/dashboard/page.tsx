@@ -389,16 +389,17 @@ export default function DashboardPage() {
   return (
     <div className="bryl relative min-h-screen">
       <div aria-hidden className="bryl-dotbg" />
-      <div className="relative z-[1] mx-auto max-w-[56rem] px-4 py-6 sm:px-6">
-        {/* header: wordmark · testnet/mainnet toggle · network dropdown · live pill */}
+      <div className="relative z-[1] mx-auto max-w-[56rem] px-3 py-4 sm:px-6 sm:py-6">
+        {/* header: wordmark + live pill; chain controls drop to their own
+            full-width row on mobile */}
         <header
-          className="bryl-fade-up flex flex-wrap items-center justify-between gap-3"
+          className="bryl-fade-up flex flex-wrap items-center gap-2"
           style={fade(0)}
         >
-          <span className="bryl-mono text-sm font-medium lowercase">
+          <span className="bryl-mono mr-auto text-sm font-medium lowercase">
             ⛓ blockchaindb
           </span>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="order-last flex w-full items-center gap-2 sm:order-none sm:w-auto">
             <div className="bryl-tabs" role="group" aria-label="chain type">
               {(["testnet", "mainnet"] as Side[]).map((s) => (
                 <button
@@ -416,7 +417,7 @@ export default function DashboardPage() {
               ))}
             </div>
             <select
-              className="bryl-select"
+              className="bryl-select min-w-0 flex-1 sm:flex-none"
               value={
                 currentPreset && currentPreset.testnet === (side === "testnet")
                   ? currentPreset.rpcUrl
@@ -439,34 +440,47 @@ export default function DashboardPage() {
                 </option>
               ))}
             </select>
-            <span className={`bryl-pill ${connected ? "bryl-pill-inverted" : ""}`}>
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  connected
-                    ? "dot-pulse bg-white"
-                    : "border border-[var(--gray-400)]"
-                }`}
-              />
-              {status === null
-                ? "connecting"
-                : switching
-                  ? "switching"
-                  : connected
-                    ? "live"
-                    : "offline"}
-            </span>
           </div>
+          {status?.contract?.address && (
+            <span className="bryl-pill">
+              {status.contract.address.slice(0, 6)}…
+              {status.contract.address.slice(-4)}
+            </span>
+          )}
+          <span className={`bryl-pill ${connected ? "bryl-pill-inverted" : ""}`}>
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                connected
+                  ? "dot-pulse bg-white"
+                  : "border border-[var(--gray-400)]"
+              }`}
+            />
+            {status === null
+              ? "connecting"
+              : switching
+                ? "switching"
+                : connected
+                  ? "live"
+                  : "offline"}
+          </span>
         </header>
 
         {/* title */}
-        <div className="bryl-fade-up mt-8" style={fade(1)}>
-          <h1 className="bryl-title text-[2rem] sm:text-[2.5rem]">dashboard</h1>
-          <p className="bryl-label mt-2">the blockchain is your database</p>
+        <div className="bryl-fade-up mt-5 sm:mt-8" style={fade(1)}>
+          <h1 className="bryl-title text-[1.6rem] sm:text-[2.5rem]">
+            dashboard
+          </h1>
+          <p className="bryl-label mt-1.5 sm:mt-2">
+            the blockchain is your database
+          </p>
         </div>
 
         {/* 01 — status strip: every cell jumps to its tab below */}
-        <section className="mt-8">
-          <h2 className="bryl-section-header bryl-fade-up mb-3" style={fade(2)}>
+        <section className="mt-6 sm:mt-8">
+          <h2
+            className="bryl-section-header bryl-fade-up mb-2 sm:mb-3"
+            style={fade(2)}
+          >
             01 — status
           </h2>
           <div className="bryl-strip bryl-fade-up" style={fade(2)}>
@@ -498,9 +512,9 @@ export default function DashboardPage() {
         </section>
 
         {/* 02 — workspace: tabbed panels, all data inline */}
-        <section className="mt-8">
+        <section className="mt-6 sm:mt-8">
           <div
-            className="bryl-fade-up mb-3 flex flex-wrap items-center justify-between gap-2"
+            className="bryl-fade-up mb-2 flex flex-wrap items-center justify-between gap-2 sm:mb-3"
             style={fade(3)}
           >
             <h2 className="bryl-section-header">02 — workspace</h2>
@@ -535,8 +549,8 @@ export default function DashboardPage() {
 
           {/* ---- collections ---- */}
           {tab === "collections" && (
-            <div key="collections" className="bryl-panel bryl-card bg-white p-4">
-              <form onSubmit={createCollection} className="mb-4 flex gap-2">
+            <div key="collections" className="bryl-panel bryl-card bg-white p-3 sm:p-4">
+              <form onSubmit={createCollection} className="mb-3 flex gap-2 sm:mb-4">
                 <input
                   className="bryl-input flex-1"
                   value={newColName}
@@ -599,8 +613,8 @@ export default function DashboardPage() {
 
           {/* ---- documents ---- */}
           {tab === "documents" && (
-            <div key="documents" className="bryl-panel bryl-card bg-white p-4">
-              <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div key="documents" className="bryl-panel bryl-card bg-white p-3 sm:p-4">
+              <div className="mb-3 flex flex-wrap items-center gap-2 sm:mb-4">
                 <select
                   className="bryl-select"
                   value={selectedCollection}
@@ -665,7 +679,52 @@ export default function DashboardPage() {
                   first one above
                 </p>
               ) : (
-                <table className="bryl-table">
+                <>
+                  {/* mobile: compact card list — the table is desktop-only */}
+                  <div className="sm:hidden">
+                    {documents.map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="bryl-doc-card"
+                        onClick={() =>
+                          setExpandedId(expandedId === doc.id ? null : doc.id)
+                        }
+                      >
+                        <div className="bryl-mono flex items-center gap-2 text-[0.6875rem]">
+                          <span className="tabular-nums text-[var(--gray-400)]">
+                            #{doc.id}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-[var(--gray-500)]">
+                            {fmtTime(doc.updatedAt)}
+                          </span>
+                          <button
+                            type="button"
+                            className="bryl-mono px-1 text-xs text-[var(--gray-400)]"
+                            disabled={busyDocId === doc.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteDocument(doc);
+                            }}
+                            title="delete document"
+                          >
+                            {busyDocId === doc.id ? "…" : "✕"}
+                          </button>
+                        </div>
+                        {expandedId === doc.id ? (
+                          <pre className="bryl-mono mt-1.5 overflow-x-auto whitespace-pre-wrap rounded bg-[var(--gray-50)] p-2 text-[0.6875rem] leading-5">
+                            {JSON.stringify(doc.data, null, 2)}
+                          </pre>
+                        ) : (
+                          <p className="bryl-mono mt-1 truncate text-[0.6875rem] text-[var(--ink)]">
+                            {doc.locked
+                              ? "🔒 encrypted"
+                              : JSON.stringify(doc.data)}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <table className="bryl-table hidden sm:table">
                   <thead>
                     <tr>
                       <th className="w-14">id</th>
@@ -719,14 +778,15 @@ export default function DashboardPage() {
                       </>
                     ))}
                   </tbody>
-                </table>
+                  </table>
+                </>
               )}
             </div>
           )}
 
           {/* ---- network ---- */}
           {tab === "network" && (
-            <div key="network" className="bryl-panel bryl-card overflow-x-auto bg-white p-4">
+            <div key="network" className="bryl-panel bryl-card overflow-x-auto bg-white p-3 sm:p-4">
               <table className="bryl-table">
                 <tbody>
                   {(
@@ -745,14 +805,14 @@ export default function DashboardPage() {
                     ] as [string, string][]
                   ).map(([label, value]) => (
                     <tr key={label}>
-                      <td className="w-36 uppercase tracking-wider text-[var(--gray-400)]">
+                      <td className="w-24 uppercase tracking-wider text-[var(--gray-400)] sm:w-36">
                         {label}
                       </td>
                       <td className="break-all text-[var(--ink)]">{value}</td>
                     </tr>
                   ))}
                   <tr>
-                    <td className="w-36 uppercase tracking-wider text-[var(--gray-400)]">
+                    <td className="w-24 uppercase tracking-wider text-[var(--gray-400)] sm:w-36">
                       type
                     </td>
                     <td>
@@ -770,7 +830,7 @@ export default function DashboardPage() {
                     </td>
                   </tr>
                   <tr>
-                    <td className="w-36 uppercase tracking-wider text-[var(--gray-400)]">
+                    <td className="w-24 uppercase tracking-wider text-[var(--gray-400)] sm:w-36">
                       explorer
                     </td>
                     <td>
@@ -790,7 +850,7 @@ export default function DashboardPage() {
                   </tr>
                   {net?.testnet && net.faucetUrl && (
                     <tr>
-                      <td className="w-36 uppercase tracking-wider text-[var(--gray-400)]">
+                      <td className="w-24 uppercase tracking-wider text-[var(--gray-400)] sm:w-36">
                         faucet
                       </td>
                       <td>
@@ -816,7 +876,7 @@ export default function DashboardPage() {
 
           {/* ---- settings ---- */}
           {tab === "settings" && (
-            <div key="settings" className="bryl-panel bryl-card bg-white p-4">
+            <div key="settings" className="bryl-panel bryl-card bg-white p-3 sm:p-4">
               <form onSubmit={saveSettings} className="flex flex-col gap-4">
                 <div>
                   <label className="bryl-label mb-1.5 block">
@@ -888,7 +948,7 @@ export default function DashboardPage() {
           )}
         </section>
 
-        <footer className="bryl-label mt-10 border-t border-[var(--gray-200)] pt-4">
+        <footer className="bryl-label mt-8 border-t border-[var(--gray-200)] pt-4 sm:mt-10">
           blockchaindb — self-hosted · one contract · any evm network
         </footer>
       </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { persistEnv } from "@/lib/env";
+import { hydrateSettings } from "@/lib/settingsStore";
 import {
   attachSession,
   clearSession,
@@ -16,6 +17,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const blocked = requireSameOrigin(req);
   if (blocked) return blocked;
+  await hydrateSettings();
   return NextResponse.json({
     passwordSet: dashboardPasswordSet(),
     authed: isDashboardAuthed(req),
@@ -31,6 +33,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const blocked = requireSameOrigin(req);
   if (blocked) return blocked;
+  await hydrateSettings();
 
   let body: { action?: string; password?: string };
   try {
@@ -61,7 +64,13 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    await persistEnv({ dashboardPassword: password });
+    try {
+      await persistEnv({ dashboardPassword: password });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not save the password.";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
     return attachSession(NextResponse.json({ ok: true, created: true }));
   }
 

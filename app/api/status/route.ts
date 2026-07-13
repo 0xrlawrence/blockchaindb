@@ -4,6 +4,7 @@ import { getNetworkSnapshot } from "@/lib/blockchain";
 import { findByChainId } from "@/lib/networks";
 import { isEncryptionAvailable } from "@/lib/crypto";
 import { apiKeyConfigured } from "@/lib/auth";
+import { hydrateSettings } from "@/lib/settingsStore";
 import { BlockchainDB } from "@/lib/database";
 import type { StatusResponse } from "@/lib/types";
 
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 /** GET /api/status — network, wallet, contract, and database stats in one call. */
 export async function GET() {
+  await hydrateSettings();
   const config = getConfig();
   const status: StatusResponse = {
     connected: false,

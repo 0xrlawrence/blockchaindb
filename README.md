@@ -19,6 +19,14 @@ Solidity knowledge required.
 [![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/0xrlawrence/blockchaindb&env=RPC_URL,PRIVATE_KEY,CONTRACT_ADDRESS,API_KEY)
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/0xrlawrence/blockchaindb)
 
+On serverless hosts (Vercel/Netlify) the filesystem is read-only, so the
+dashboard stores its own settings — password, allowed domains, data
+visibility, API key — **on-chain**, as an encrypted blob in a reserved
+`_settings` collection (AES-256-GCM, key derived from your wallet key). Only
+the three bootstrap variables plus an optional custom encryption key must be
+hosting environment variables there; a `DASHBOARD_PASSWORD` env var always
+wins over the on-chain value, which is your lockout recovery path.
+
 Set `RPC_URL`, `PRIVATE_KEY`, `CONTRACT_ADDRESS`, and (optional) `API_KEY` when
 the host prompts. **Note:** serverless hosts (Vercel/Netlify) have a read-only
 filesystem, so the in-app Settings/Deploy/API-key writes don't persist there —

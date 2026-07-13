@@ -68,7 +68,7 @@ export default function DevelopersPage() {
         repo
       )}&env=RPC_URL,PRIVATE_KEY,CONTRACT_ADDRESS,API_KEY&envDescription=${encodeURIComponent(
         "RPC URL, wallet private key, deployed contract address, and an API key (any random string)."
-      )}&project-name=blockchaindb&repository-name=blockchaindb`
+      )}&project-name=starboardb&repository-name=starboardb`
     : "";
   const netlifyUrl = repoValid
     ? `https://app.netlify.com/start/deploy?repository=${encodeURIComponent(repo)}`
@@ -138,7 +138,7 @@ const { documents } = await db("/api/list?collection=guestbook");`;
       <div>
         <h2 className="text-lg font-semibold">API</h2>
         <p className="mt-0.5 text-sm text-ink-faint">
-          Use BlockchainDB as the CRUD backend for any website or app — call
+          Use StarBoarDB as the CRUD backend for any website or app — call
           these endpoints from your frontend or server.
         </p>
       </div>

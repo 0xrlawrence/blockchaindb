@@ -20,11 +20,14 @@ export default function Sidebar() {
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-base-border bg-base-panel">
       <Link href="/" className="flex items-center gap-2.5 px-5 py-5">
-        <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand to-brand-dim text-sm font-bold text-base">
-          ⛓
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/starboar.webp"
+          alt=""
+          className="h-8 w-8 rounded-lg object-contain"
+        />
         <span className="text-[15px] font-semibold tracking-tight">
-          BlockchainDB
+          StarBoarDB
         </span>
       </Link>
 

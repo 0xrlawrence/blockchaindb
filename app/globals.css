@@ -536,6 +536,94 @@ a.bryl-card:active {
   }
 }
 
+/* ---- Mobile: a tighter register of the same system ----
+   Below 640px everything drops a size: smaller pixel display, denser
+   strip cells, scrollable tab rail, tighter table cells. */
+@media (max-width: 639px) {
+  .bryl {
+    font-size: 0.875rem;
+  }
+  .bryl-section-header {
+    font-size: 0.75rem;
+    letter-spacing: 1.5px;
+  }
+  .bryl-label {
+    font-size: 0.625rem;
+  }
+  .bryl-strip > button {
+    gap: 0.25rem;
+    padding: 0.5rem 0.65rem;
+  }
+  .bryl-strip .bryl-stat-value {
+    font-size: 0.9375rem !important;
+  }
+  .bryl-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .bryl-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .bryl-tab {
+    padding: 0.3rem 0.55rem;
+    font-size: 0.625rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .bryl-table {
+    font-size: 0.6875rem;
+  }
+  .bryl-table th,
+  .bryl-table td {
+    padding: 0.45rem 0.5rem;
+  }
+  .bryl-input,
+  .bryl-select {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.5rem;
+  }
+  .bryl-select {
+    padding-right: 1.4rem;
+  }
+  .bryl-btn {
+    font-size: 0.625rem;
+    padding: 0.4rem 0.7rem;
+    white-space: nowrap;
+  }
+  .bryl-pill {
+    font-size: 0.5625rem;
+    padding: 2px 8px;
+  }
+  /* fewer, calmer dots on a small screen */
+  .bryl-dotbg {
+    -webkit-mask-image: radial-gradient(
+      ellipse 160% 40% at 70% -12%,
+      black 20%,
+      transparent 68%
+    );
+    mask-image: radial-gradient(
+      ellipse 160% 40% at 70% -12%,
+      black 20%,
+      transparent 68%
+    );
+  }
+  .bryl-dotbg::after {
+    display: none;
+  }
+}
+
+/* Mobile document cards (the table is desktop-only) */
+.bryl-doc-card {
+  border-bottom: 1px solid var(--gray-200);
+  padding: 0.6rem 0.1rem;
+  cursor: pointer;
+}
+.bryl-doc-card:last-child {
+  border-bottom: none;
+}
+
 /* Light-theme skeletons inside .bryl */
 .bryl .skeleton {
   background: var(--gray-100);

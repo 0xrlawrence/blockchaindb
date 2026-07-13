@@ -7,44 +7,55 @@ import {
 import { getConfig } from "./config";
 
 /**
- * Document-payload encryption. Contents are encrypted with AES-256-GCM before
- * they're written on-chain, so the public ledger only stores an opaque blob.
- * The key is derived from the wallet's PRIVATE_KEY — so only the key owner can
- * decrypt. (This is real encryption; a SHA-256 hash would be one-way and could
- * never be read back.)
+ * Document-payload encryption. In "private" mode (the default) contents are
+ * encrypted with AES-256-GCM before they're written on-chain, so the public
+ * ledger only stores an opaque blob. The key is derived from a custom
+ * ENCRYPTION_KEY if one is set (bring-your-own-key, e.g. `openssl rand -hex
+ * 32`), otherwise from the wallet's PRIVATE_KEY — so only the key owner can
+ * decrypt. In "public" mode (DATA_VISIBILITY=public) payloads go on-chain as
+ * readable plaintext by choice.
  *
  * On-chain format:  enc:v1:<base64( iv[12] | tag[16] | ciphertext )>
  * Anything without the enc:v1: prefix is treated as legacy plaintext, so
- * documents written before encryption was added still read fine.
+ * documents written before encryption was added still read fine. Reads
+ * always try to decrypt regardless of visibility mode, so flipping to
+ * public never locks existing encrypted documents.
  */
 
 const PREFIX = "enc:v1:";
 const SALT = "blockchaindb:enc:v1"; // fixed, non-secret; the key material is the secret
 
-// scrypt is deliberately slow, so cache the derived key per private key.
-let cache: { pk: string; key: Buffer } | null = null;
+// scrypt is deliberately slow, so cache the derived key per key material.
+let cache: { material: string; key: Buffer } | null = null;
 
 function keyMaterial(): Buffer | null {
-  const { privateKey } = getConfig();
-  if (!privateKey) return null;
-  if (cache && cache.pk === privateKey) return cache.key;
-  const key = scryptSync(privateKey, SALT, 32);
-  cache = { pk: privateKey, key };
+  const { privateKey, encryptionKey } = getConfig();
+  const material = encryptionKey || privateKey;
+  if (!material) return null;
+  if (cache && cache.material === material) return cache.key;
+  const key = scryptSync(material, SALT, 32);
+  cache = { material, key };
   return key;
 }
 
-/** True when a wallet key is configured, so writes will be encrypted. */
+/** True when new writes will be encrypted: private mode + key material. */
 export function isEncryptionAvailable(): boolean {
-  return keyMaterial() !== null;
+  return getConfig().dataVisibility === "private" && keyMaterial() !== null;
+}
+
+/** True when a bring-your-own ENCRYPTION_KEY overrides the wallet key. */
+export function usesCustomKey(): boolean {
+  return getConfig().encryptionKey.length > 0;
 }
 
 export function isEncrypted(stored: string): boolean {
   return stored.startsWith(PREFIX);
 }
 
-/** Encrypt a payload for on-chain storage. Falls back to plaintext only if no
- *  key is configured (writes always have a key, so that path is unreachable). */
+/** Encrypt a payload for on-chain storage. Writes plaintext when the owner
+ *  chose public visibility, or when no key material exists. */
 export function encryptData(plaintext: string): string {
+  if (getConfig().dataVisibility === "public") return plaintext;
   const key = keyMaterial();
   if (!key) return plaintext;
   const iv = randomBytes(12);

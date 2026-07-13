@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes, timingSafeEqual } from "crypto";
+import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import { getConfig } from "./config";
 
 /**
- * API access control for the data endpoints so BlockchainDB can back an
- * external website.
+ * API access control for the data endpoints so StarBoarDB can back an
+ * external website — Firebase-style: domain whitelist + secret handshake.
  *
  * Model:
- *  - CORS is always enabled, so any website can call the API from the browser.
  *  - The dashboard (same-origin requests) is always allowed.
- *  - Cross-origin / server-to-server callers must send the API key IF one is
- *    configured (`API_KEY`). If no key is set, the API is OPEN — fine for local
- *    dev, but set a key before exposing it publicly.
+ *  - Nothing configured (no `API_KEY`, no `ALLOWED_ORIGINS`): the API is
+ *    OPEN with permissive CORS — fine for local dev only.
+ *  - Once either is configured, an external request must pass at least one:
+ *      1. Domain whitelist — its Origin/Referer matches `ALLOWED_ORIGINS`
+ *         (comma-separated origins; `https://*.example.com` wildcards work).
+ *         CORS headers echo only whitelisted origins, so browsers on other
+ *         sites can't read responses at all.
+ *      2. Secret key — `x-api-key: <key>` or `Authorization: Bearer <key>`
+ *         matching `API_KEY` (for servers/terminals, where Origin is absent
+ *         or forgeable).
+ *  - A Postman/terminal caller has no browser Origin and no key → rejected
+ *    before any RPC call spends gas.
  *
- * Send the key as either header:
- *    x-api-key: <key>
- *    Authorization: Bearer <key>
+ * Note: only the key is cryptographic proof — a non-browser client can fake
+ * an Origin header. The whitelist is the browser-facing layer (like
+ * Firebase's authorized domains); keep a key set for real isolation.
  */
 
 export function getApiKey(): string {
@@ -54,19 +62,144 @@ function isSameOrigin(req: NextRequest): boolean {
   return req.headers.get("sec-fetch-site") === "same-origin";
 }
 
+/* ---- Dashboard password (site access) ----
+ * A password in DASHBOARD_PASSWORD locks the dashboard UI and admin
+ * endpoints. Logging in sets an httpOnly session cookie whose value is
+ * derived from the password, so changing the password invalidates every
+ * existing session. No password = open (first-run / local dev); the
+ * dashboard's onboarding pushes the owner to create one.
+ */
+
+export const SESSION_COOKIE = "sbdb_session";
+
+export function dashboardPasswordSet(): boolean {
+  return getConfig().dashboardPassword.length > 0;
+}
+
+function sessionToken(): string | null {
+  const pw = getConfig().dashboardPassword;
+  if (!pw) return null;
+  return createHash("sha256").update(`sbdb:session:v1:${pw}`).digest("hex");
+}
+
+export function verifyDashboardPassword(password: string): boolean {
+  const expected = getConfig().dashboardPassword;
+  return expected.length > 0 && keysMatch(password, expected);
+}
+
+/** True when no password is configured, or the request carries a valid
+ *  session cookie. */
+export function isDashboardAuthed(req: NextRequest): boolean {
+  const expected = sessionToken();
+  if (!expected) return true;
+  const cookie = req.cookies.get(SESSION_COOKIE)?.value ?? "";
+  return keysMatch(cookie, expected);
+}
+
+/** Set the session cookie on a response (call after the password exists). */
+export function attachSession(res: NextResponse): NextResponse {
+  const token = sessionToken();
+  if (token) {
+    res.cookies.set(SESSION_COOKIE, token, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+  }
+  return res;
+}
+
+export function clearSession(res: NextResponse): NextResponse {
+  res.cookies.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+  return res;
+}
+
+/** Same-origin guard for pre-auth endpoints (login itself). */
+export function requireSameOrigin(req: NextRequest): NextResponse | null {
+  if (isSameOrigin(req)) return null;
+  return NextResponse.json(
+    { error: "This endpoint is only available from the dashboard." },
+    { status: 403 }
+  );
+}
+
+/** Whitelisted origins, normalized (lowercase, no trailing slash). */
+export function getAllowedOrigins(): string[] {
+  return getConfig()
+    .allowedOrigins.split(/[\s,]+/)
+    .map((o) => o.trim().replace(/\/+$/, "").toLowerCase())
+    .filter(Boolean);
+}
+
+/** Where the browser says the request came from: Origin, else Referer's origin. */
+function requestOrigin(req: NextRequest): string | null {
+  const origin = req.headers.get("origin");
+  if (origin) return origin;
+  const referer = req.headers.get("referer");
+  if (referer) {
+    try {
+      return new URL(referer).origin;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Does the request's origin match an ALLOWED_ORIGINS entry?
+ *  Exact origin match, plus `https://*.example.com` subdomain wildcards.
+ *  Returns false when no whitelist is configured — callers decide the
+ *  open-mode default themselves. */
+function originWhitelisted(req: NextRequest): boolean {
+  const allowed = getAllowedOrigins();
+  if (allowed.length === 0) return false;
+  const raw = requestOrigin(req);
+  if (!raw) return false;
+  let url: URL;
+  try {
+    url = new URL(raw.toLowerCase());
+  } catch {
+    return false;
+  }
+  const origin = url.origin;
+  return allowed.some((entry) => {
+    const star = entry.indexOf("://*.");
+    if (star !== -1) {
+      const proto = entry.slice(0, star + 3); // "https://"
+      const host = entry.slice(star + 5); // "example.com"
+      return (
+        origin.startsWith(proto) &&
+        (url.hostname === host || url.hostname.endsWith(`.${host}`))
+      );
+    }
+    return entry === origin;
+  });
+}
+
 export function corsHeaders(req: NextRequest): Record<string, string> {
-  return {
-    "Access-Control-Allow-Origin": req.headers.get("origin") ?? "*",
+  const headers: Record<string, string> = {
     Vary: "Origin",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key",
     "Access-Control-Max-Age": "86400",
   };
+  const origin = req.headers.get("origin");
+  if (getAllowedOrigins().length === 0) {
+    // no whitelist: permissive CORS, as before
+    headers["Access-Control-Allow-Origin"] = origin ?? "*";
+  } else if (origin && originWhitelisted(req)) {
+    // whitelist: echo the origin back only when it's allowed — browsers on
+    // any other site can't read the response
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+  return headers;
 }
 
 type Handler = (req: NextRequest) => Promise<NextResponse> | NextResponse;
 
-/** Wrap a data-endpoint handler with CORS + optional API-key enforcement. */
+/** Wrap a data-endpoint handler with the security layer:
+ *  CORS + (domain whitelist OR API key) enforcement. */
 export function withApiAuth(handler: Handler): Handler {
   return async (req: NextRequest) => {
     const cors = corsHeaders(req);
@@ -75,18 +208,31 @@ export function withApiAuth(handler: Handler): Handler {
       return res;
     };
 
-    if (!isSameOrigin(req)) {
+    // The dashboard is trusted only when it's also unlocked — a terminal
+    // client spoofing `Sec-Fetch-Site: same-origin` still lacks the session
+    // cookie once a dashboard password exists.
+    const trustedDashboard = isSameOrigin(req) && isDashboardAuthed(req);
+
+    if (!trustedDashboard) {
       const expected = getApiKey();
-      if (expected) {
+      const hasKeyRule = expected.length > 0;
+      const hasDomainRule = getAllowedOrigins().length > 0;
+
+      // Anything configured → the request must pass at least one rule.
+      if (hasKeyRule || hasDomainRule) {
         const provided = providedKey(req);
-        if (!provided || !keysMatch(provided, expected)) {
+        const keyOk =
+          hasKeyRule && provided !== null && keysMatch(provided, expected);
+        const domainOk = hasDomainRule && originWhitelisted(req);
+
+        if (!keyOk && !domainOk) {
           return attach(
             NextResponse.json(
               {
                 error:
-                  "Unauthorized. Send your API key as an 'x-api-key' header or 'Authorization: Bearer <key>'.",
+                  "Access denied: request origin is not an allowed domain and no valid API key was provided. Call from a whitelisted domain, or send 'x-api-key: <key>' / 'Authorization: Bearer <key>'.",
               },
-              { status: 401 }
+              { status: 403 }
             )
           );
         }
@@ -102,11 +248,23 @@ export function apiOptions(req: NextRequest): NextResponse {
   return new NextResponse(null, { status: 204, headers: corsHeaders(req) });
 }
 
-/** Guard admin-only endpoints (settings, deploy, api-key) to the dashboard. */
+/** Guard admin-only endpoints (settings, deploy, api-key) to the dashboard —
+ *  and, once a password exists, to an unlocked dashboard session. */
 export function requireDashboard(req: NextRequest): NextResponse | null {
-  if (isSameOrigin(req)) return null;
-  return NextResponse.json(
-    { error: "This endpoint is only available from the dashboard." },
-    { status: 403 }
-  );
+  if (!isSameOrigin(req)) {
+    return NextResponse.json(
+      { error: "This endpoint is only available from the dashboard." },
+      { status: 403 }
+    );
+  }
+  if (!isDashboardAuthed(req)) {
+    return NextResponse.json(
+      {
+        error: "Dashboard is locked. Enter the dashboard password.",
+        authRequired: true,
+      },
+      { status: 401 }
+    );
+  }
+  return null;
 }

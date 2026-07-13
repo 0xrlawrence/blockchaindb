@@ -1,4 +1,4 @@
-# BlockchainDB
+# StarBoarDB
 
 **A self-hosted blockchain database with a Supabase-like dashboard.**
 
@@ -119,7 +119,7 @@ data and power users.
 
 ## Encryption (private by default)
 
-A public blockchain means anyone can read transaction data. BlockchainDB
+A public blockchain means anyone can read transaction data. StarBoarDB
 **encrypts every document payload before it's written on-chain** with
 AES-256-GCM, keyed from your wallet's private key — so the ledger only stores an
 opaque blob and **only the key owner can read it back**.
@@ -162,22 +162,31 @@ headers. `/api/settings`, `/api/deploy`, `/api/apikey` are dashboard-only.
 
 ## Using it as an API (back any website)
 
-BlockchainDB is a REST API you can point a real website or server at.
+StarBoarDB is a REST API you can point a real website or server at.
 
-1. **CORS is enabled** on all data endpoints, so a browser app on any origin can
-   call them.
-2. **Auth is an optional API key.** With no key set the API is *open* (fine for
-   local dev). Generate a key from the dashboard's **API** page (or set
-   `API_KEY` in `.env.local`) and every external call must then send it:
+1. **CORS is enabled** on all data endpoints. With no allowed domains
+   configured, any origin may call them.
+2. **Allowed domains (Firebase-style whitelist).** Set them in the dashboard's
+   **settings** tab (or `ALLOWED_ORIGINS` in `.env.local`, comma-separated,
+   e.g. `https://myapp.com,https://*.mybusiness.ph`). Once set, CORS headers
+   are only sent to whitelisted origins, and browser requests from any other
+   site are rejected with `403` before an RPC call spends gas.
+3. **API key (secret handshake).** Generate a key from the dashboard's **API**
+   page (or set `API_KEY` in `.env.local`). Servers, terminals, and anything
+   without a whitelisted browser Origin must send it:
 
    ```
    x-api-key: bdb_…            (or)   Authorization: Bearer bdb_…
    ```
 
+   When both rules are configured, a request passes with *either* a
+   whitelisted origin *or* a valid key. Only the key is cryptographic proof —
+   non-browser clients can fake an Origin header — so keep a key set for real
+   isolation. With neither configured the API is *open* (fine for local dev).
    The dashboard itself never needs the key (it's recognised as same-origin).
    Admin endpoints (`/api/settings`, `/api/deploy`, `/api/apikey`) are always
    dashboard-only.
-3. **Deploy** this Next.js app anywhere (Vercel, a VPS, …) and use that public
+4. **Deploy** this Next.js app anywhere (Vercel, a VPS, …) and use that public
    URL as your API base.
 
 Minimal client:

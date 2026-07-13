@@ -22,6 +22,14 @@ export interface AppConfig {
   /** Comma-separated origins allowed to call the data API from a browser
    *  (e.g. "https://myapp.com,https://*.mybusiness.ph"). Empty = any site. */
   allowedOrigins: string;
+  /** Password protecting the dashboard UI + admin endpoints. Empty = no gate. */
+  dashboardPassword: string;
+  /** How document payloads go on-chain: encrypted ("private") or plaintext
+   *  ("public"). Private is the default. */
+  dataVisibility: "public" | "private";
+  /** Optional custom encryption key material (e.g. `openssl rand -hex 32`).
+   *  Empty = derive from the wallet PRIVATE_KEY as before. */
+  encryptionKey: string;
 }
 
 export interface StatusResponse {

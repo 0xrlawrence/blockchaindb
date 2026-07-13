@@ -15,6 +15,8 @@ export async function GET(req: NextRequest) {
     contractAddress: config.contractAddress,
     privateKeySet: Boolean(config.privateKey),
     allowedOrigins: config.allowedOrigins,
+    dataVisibility: config.dataVisibility,
+    encryptionKeySet: Boolean(config.encryptionKey),
     defaultRpcUrl: DEFAULT_RPC_URL,
   });
 }
@@ -64,6 +66,35 @@ export async function POST(req: NextRequest) {
       allowedOrigins = entries.join(",");
     }
 
+    const dataVisibility =
+      typeof body?.dataVisibility === "string"
+        ? body.dataVisibility.trim().toLowerCase()
+        : undefined;
+    if (
+      dataVisibility !== undefined &&
+      dataVisibility !== "public" &&
+      dataVisibility !== "private"
+    ) {
+      return NextResponse.json(
+        { error: "`dataVisibility` must be 'public' or 'private'." },
+        { status: 400 }
+      );
+    }
+
+    const encryptionKey =
+      typeof body?.encryptionKey === "string"
+        ? body.encryptionKey
+        : undefined;
+    if (encryptionKey?.trim() && encryptionKey.trim().length < 16) {
+      return NextResponse.json(
+        {
+          error:
+            "`encryptionKey` must be at least 16 characters — generate one with `openssl rand -hex 32`.",
+        },
+        { status: 400 }
+      );
+    }
+
     if (
       contractAddress?.trim() &&
       !/^0x[0-9a-fA-F]{40}$/.test(contractAddress.trim())
@@ -89,7 +120,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await persistEnv({ rpcUrl, privateKey, contractAddress, allowedOrigins });
+    await persistEnv({
+      rpcUrl,
+      privateKey,
+      contractAddress,
+      allowedOrigins,
+      dataVisibility,
+      encryptionKey,
+    });
     return NextResponse.json({ saved: true, path: ".env.local" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "save failed";

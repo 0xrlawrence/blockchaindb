@@ -16,6 +16,9 @@ export async function persistEnv(next: {
   contractAddress?: string;
   apiKey?: string;
   allowedOrigins?: string;
+  dashboardPassword?: string;
+  dataVisibility?: string;
+  encryptionKey?: string;
 }): Promise<void> {
   const current = getConfig();
   const rpcUrl = next.rpcUrl !== undefined ? next.rpcUrl.trim() : current.rpcUrl;
@@ -31,6 +34,18 @@ export async function persistEnv(next: {
     next.allowedOrigins !== undefined
       ? next.allowedOrigins.trim()
       : current.allowedOrigins;
+  const dashboardPassword =
+    next.dashboardPassword !== undefined
+      ? next.dashboardPassword.trim()
+      : current.dashboardPassword;
+  const dataVisibility =
+    next.dataVisibility !== undefined
+      ? next.dataVisibility.trim().toLowerCase()
+      : current.dataVisibility;
+  const encryptionKey =
+    next.encryptionKey !== undefined
+      ? next.encryptionKey.trim()
+      : current.encryptionKey;
 
   try {
     writeEnvFile(ENV_PATH, {
@@ -39,6 +54,9 @@ export async function persistEnv(next: {
       CONTRACT_ADDRESS: contractAddress,
       API_KEY: apiKey,
       ALLOWED_ORIGINS: allowedOrigins,
+      DASHBOARD_PASSWORD: dashboardPassword,
+      DATA_VISIBILITY: dataVisibility,
+      ENCRYPTION_KEY: encryptionKey,
     });
   } catch (error) {
     const code = (error as NodeJS.ErrnoException)?.code;
@@ -55,4 +73,7 @@ export async function persistEnv(next: {
   process.env.CONTRACT_ADDRESS = contractAddress;
   process.env.API_KEY = apiKey;
   process.env.ALLOWED_ORIGINS = allowedOrigins;
+  process.env.DASHBOARD_PASSWORD = dashboardPassword;
+  process.env.DATA_VISIBILITY = dataVisibility;
+  process.env.ENCRYPTION_KEY = encryptionKey;
 }

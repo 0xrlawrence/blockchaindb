@@ -12,6 +12,12 @@ export function getConfig(): AppConfig {
     contractAddress: (process.env.CONTRACT_ADDRESS ?? "").trim(),
     apiKey: (process.env.API_KEY ?? "").trim(),
     allowedOrigins: (process.env.ALLOWED_ORIGINS ?? "").trim(),
+    dashboardPassword: (process.env.DASHBOARD_PASSWORD ?? "").trim(),
+    dataVisibility:
+      (process.env.DATA_VISIBILITY ?? "").trim().toLowerCase() === "public"
+        ? "public"
+        : "private",
+    encryptionKey: (process.env.ENCRYPTION_KEY ?? "").trim(),
   };
 }
 

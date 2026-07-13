@@ -16,6 +16,20 @@ interface SettingsState {
   contractAddress: string;
   privateKeySet: boolean;
   allowedOrigins: string;
+  dataVisibility: "public" | "private";
+  encryptionKeySet: boolean;
+}
+
+interface AuthState {
+  passwordSet: boolean;
+  authed: boolean;
+}
+
+/** 32 random bytes as hex — a browser-side `openssl rand -hex 32`. */
+function generateKeyHex(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function shorten(hash: string | null | undefined): string {
@@ -65,6 +79,18 @@ export default function DashboardPage() {
   const [privateKey, setPrivateKey] = useState("");
   const [contractAddress, setContractAddress] = useState("");
   const [allowedOrigins, setAllowedOrigins] = useState("");
+
+  // site access + onboarding
+  const [auth, setAuth] = useState<AuthState | null>(null);
+  const [authMsg, setAuthMsg] = useState<string | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [unlockPw, setUnlockPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [newPw2, setNewPw2] = useState("");
+  const [savingVisibility, setSavingVisibility] = useState(false);
+  const [encKeyInput, setEncKeyInput] = useState("");
+  const [savingEncKey, setSavingEncKey] = useState(false);
+  const [showKeyHelp, setShowKeyHelp] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [deploying, setDeploying] = useState(false);
   const [confirmDeploy, setConfirmDeploy] = useState(false);
@@ -84,6 +110,8 @@ export default function DashboardPage() {
       contractAddress: s.contractAddress ?? "",
       privateKeySet: Boolean(s.privateKeySet),
       allowedOrigins: s.allowedOrigins ?? "",
+      dataVisibility: s.dataVisibility === "public" ? "public" : "private",
+      encryptionKeySet: Boolean(s.encryptionKeySet),
     };
     setSettings(next);
     setContractAddress(next.contractAddress);
@@ -120,20 +148,32 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const loadAll = useCallback(async () => {
+    const [s, , cols] = await Promise.all([
+      loadStatus(),
+      loadSettings(),
+      loadCollections(),
+    ]);
+    if (!sideTouched && s?.network?.testnet === false) setSide("mainnet");
+    const first = cols.find((c) => c.documentCount > 0) ?? cols[0];
+    if (first) {
+      setSelectedCollection(first.name);
+      await loadDocuments(first.name);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadStatus, loadSettings, loadCollections, loadDocuments, sideTouched]);
+
   useEffect(() => {
     (async () => {
       try {
-        const [s, , cols] = await Promise.all([
-          loadStatus(),
-          loadSettings(),
-          loadCollections(),
-        ]);
-        if (!sideTouched && s?.network?.testnet === false) setSide("mainnet");
-        const first = cols.find((c) => c.documentCount > 0) ?? cols[0];
-        if (first) {
-          setSelectedCollection(first.name);
-          await loadDocuments(first.name);
-        }
+        // Smart detection first: is this instance password-protected, and is
+        // this browser unlocked? A locked dashboard loads nothing else.
+        const a: AuthState = await fetch("/api/auth").then((r) => r.json());
+        setAuth(a);
+        if (a.passwordSet && !a.authed) return;
+        await loadAll();
+      } catch {
+        setAuth({ passwordSet: false, authed: true });
       } finally {
         setLoaded(true);
       }
@@ -149,6 +189,127 @@ export default function DashboardPage() {
   const sideNetworks = NETWORKS.filter((n) =>
     side === "testnet" ? n.testnet : !n.testnet
   );
+
+  /* ---- site access + onboarding actions ---- */
+
+  const unlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthBusy(true);
+    setAuthMsg(null);
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "login", password: unlockPw }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Login failed");
+      setUnlockPw("");
+      setAuth({ passwordSet: true, authed: true });
+      setLoaded(false);
+      await loadAll();
+      setLoaded(true);
+    } catch (err) {
+      setAuthMsg(err instanceof Error ? err.message : "login failed");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const createPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPw !== newPw2) {
+      setAuthMsg("passwords don't match");
+      return;
+    }
+    setAuthBusy(true);
+    setAuthMsg(null);
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "setup", password: newPw }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Setup failed");
+      setNewPw("");
+      setNewPw2("");
+      setAuth({ passwordSet: true, authed: true });
+      setMsg({ kind: "ok", text: "dashboard password created — this browser stays unlocked" });
+    } catch (err) {
+      setAuthMsg(err instanceof Error ? err.message : "setup failed");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const lockDashboard = async () => {
+    await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "logout" }),
+    }).catch(() => {});
+    setAuth((a) => (a ? { ...a, authed: false } : a));
+  };
+
+  const setVisibility = async (visibility: "public" | "private") => {
+    if (!settings || settings.dataVisibility === visibility) return;
+    setSavingVisibility(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataVisibility: visibility }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Save failed");
+      await Promise.all([loadSettings(), loadStatus()]);
+      setMsg({
+        kind: "ok",
+        text:
+          visibility === "private"
+            ? "private — new documents are encrypted before they go on-chain"
+            : "public — new documents go on-chain as readable plaintext",
+      });
+    } catch (err) {
+      setMsg({
+        kind: "error",
+        text: err instanceof Error ? err.message : "save failed",
+      });
+    } finally {
+      setSavingVisibility(false);
+    }
+  };
+
+  const saveEncKey = async (key: string) => {
+    setSavingEncKey(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ encryptionKey: key }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Save failed");
+      setEncKeyInput("");
+      await Promise.all([loadSettings(), loadStatus()]);
+      setMsg({
+        kind: "ok",
+        text: key
+          ? "custom encryption key saved — keep a copy somewhere safe"
+          : "custom key removed — back to the wallet-derived key",
+      });
+    } catch (err) {
+      setMsg({
+        kind: "error",
+        text: err instanceof Error ? err.message : "save failed",
+      });
+    } finally {
+      setSavingEncKey(false);
+    }
+  };
 
   /** Header dropdown: switch the whole database to another chain. */
   const switchNetwork = async (rpcUrl: string) => {
@@ -391,6 +552,64 @@ export default function DashboardPage() {
     },
   ];
 
+  const passwordDone = auth?.passwordSet ?? false;
+  const connectionDone = Boolean(
+    status?.configured.rpc &&
+      status?.configured.wallet &&
+      status?.configured.contract
+  );
+  const encryptionOn = status?.encryption.enabled ?? false;
+  const visibility = settings?.dataVisibility ?? "private";
+  const visibilityDone = settings
+    ? visibility === "public" || encryptionOn
+    : false;
+  const onboardingNeeded =
+    loaded && auth && status && settings
+      ? !(passwordDone && connectionDone && visibilityDone)
+      : false;
+
+  // Locked instance: nothing renders until the owner enters the password.
+  if (auth?.passwordSet && !auth.authed) {
+    return (
+      <div className="bryl relative flex min-h-screen items-center justify-center px-4">
+        <div aria-hidden className="bryl-dotbg" />
+        <form
+          onSubmit={unlock}
+          className="bryl-card bryl-fade-up relative z-[1] flex w-full max-w-xs flex-col gap-3 bg-white p-6"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/starboar.webp"
+            alt=""
+            className="h-10 w-10 rounded-lg object-contain"
+          />
+          <div>
+            <p className="bryl-mono text-sm font-medium lowercase">starboardb</p>
+            <p className="bryl-label mt-1">dashboard is locked</p>
+          </div>
+          <input
+            type="password"
+            autoFocus
+            className="bryl-input w-full"
+            value={unlockPw}
+            onChange={(e) => setUnlockPw(e.target.value)}
+            placeholder="password"
+          />
+          <button
+            type="submit"
+            className="bryl-btn"
+            disabled={authBusy || !unlockPw}
+          >
+            {authBusy ? "unlocking…" : "unlock"}
+          </button>
+          {authMsg && (
+            <p className="bryl-mono text-xs text-red-600">✕ {authMsg}</p>
+          )}
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className="bryl relative min-h-screen">
       <div aria-hidden className="bryl-dotbg" />
@@ -474,6 +693,16 @@ export default function DashboardPage() {
                   ? "live"
                   : "offline"}
           </span>
+          {auth?.passwordSet && (
+            <button
+              type="button"
+              onClick={lockDashboard}
+              className="bryl-pill cursor-pointer"
+              title="lock the dashboard (sign out)"
+            >
+              lock
+            </button>
+          )}
         </header>
 
         {/* title */}
@@ -485,6 +714,249 @@ export default function DashboardPage() {
             the blockchain is your database
           </p>
         </div>
+
+        {/* 00 — setup: smart-detected onboarding; hides once everything passes */}
+        {onboardingNeeded && (
+          <section className="mt-6 sm:mt-8">
+            <h2
+              className="bryl-section-header bryl-fade-up mb-2 sm:mb-3"
+              style={fade(2)}
+            >
+              00 — setup
+            </h2>
+            <div
+              className="bryl-card bryl-fade-up divide-y divide-[var(--gray-200)] bg-white"
+              style={fade(2)}
+            >
+              {/* a — site password */}
+              <div className="p-3 sm:p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`bryl-pill ${passwordDone ? "bryl-pill-inverted" : ""}`}
+                  >
+                    {passwordDone ? "✓ done" : "action needed"}
+                  </span>
+                  <span className="text-sm font-medium lowercase">
+                    site password
+                  </span>
+                </div>
+                {passwordDone ? (
+                  <p className="bryl-label mt-2 normal-case">
+                    this dashboard is password-protected — use the lock pill in
+                    the header to sign out
+                  </p>
+                ) : (
+                  <>
+                    <p className="bryl-label mt-2 normal-case">
+                      no password detected — anyone who can reach this url can
+                      read and write your database. create one now.
+                    </p>
+                    <form
+                      onSubmit={createPassword}
+                      className="mt-3 flex flex-wrap gap-2"
+                    >
+                      <input
+                        type="password"
+                        autoComplete="new-password"
+                        className="bryl-input min-w-0 flex-1"
+                        placeholder="password (min 8 chars)"
+                        value={newPw}
+                        onChange={(e) => setNewPw(e.target.value)}
+                      />
+                      <input
+                        type="password"
+                        autoComplete="new-password"
+                        className="bryl-input min-w-0 flex-1"
+                        placeholder="repeat password"
+                        value={newPw2}
+                        onChange={(e) => setNewPw2(e.target.value)}
+                      />
+                      <button
+                        type="submit"
+                        className="bryl-btn"
+                        disabled={authBusy || newPw.length < 8}
+                      >
+                        {authBusy ? "saving…" : "create password"}
+                      </button>
+                    </form>
+                    {authMsg && (
+                      <p className="bryl-mono mt-2 text-xs text-red-600">
+                        ✕ {authMsg}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* b — connection */}
+              <div className="p-3 sm:p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`bryl-pill ${connectionDone ? "bryl-pill-inverted" : ""}`}
+                  >
+                    {connectionDone ? "✓ done" : "action needed"}
+                  </span>
+                  <span className="text-sm font-medium lowercase">
+                    chain connection
+                  </span>
+                </div>
+                {connectionDone ? (
+                  <p className="bryl-label mt-2 normal-case">
+                    rpc, wallet and contract are configured
+                  </p>
+                ) : (
+                  <>
+                    <p className="bryl-label mt-2 normal-case">
+                      missing:{" "}
+                      {[
+                        !status?.configured.rpc && "rpc url",
+                        !status?.configured.wallet && "wallet private key",
+                        !status?.configured.contract &&
+                          "contract (paste an address or deploy)",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                    <button
+                      type="button"
+                      className="bryl-btn bryl-btn--ghost mt-3"
+                      onClick={() => setTab("settings")}
+                    >
+                      open settings
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* c — data visibility */}
+              <div className="p-3 sm:p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`bryl-pill ${visibilityDone ? "bryl-pill-inverted" : ""}`}
+                  >
+                    {visibilityDone ? "✓ done" : "choose"}
+                  </span>
+                  <span className="text-sm font-medium lowercase">
+                    data visibility
+                  </span>
+                </div>
+                <p className="bryl-label mt-2 normal-case">
+                  how should your documents live on the blockchain?
+                </p>
+                <div className="bryl-tabs mt-3" role="group" aria-label="data visibility">
+                  <button
+                    type="button"
+                    className="bryl-tab"
+                    data-active={visibility === "private"}
+                    disabled={savingVisibility}
+                    onClick={() => setVisibility("private")}
+                  >
+                    private — encrypted
+                  </button>
+                  <button
+                    type="button"
+                    className="bryl-tab"
+                    data-active={visibility === "public"}
+                    disabled={savingVisibility}
+                    onClick={() => setVisibility("public")}
+                  >
+                    public — plaintext
+                  </button>
+                </div>
+                {visibility === "public" ? (
+                  <p className="bryl-label mt-2 normal-case">
+                    anyone can read on-chain data — don't store secrets in
+                    public mode
+                  </p>
+                ) : (
+                  <>
+                    {status && !status.configured.wallet && (
+                      <p className="bryl-label mt-2 normal-case">
+                        private mode encrypts with a key derived from your
+                        wallet private key — finish the chain connection step
+                        to enable it
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      className="bryl-link mt-2 block bg-transparent text-xs"
+                      onClick={() => setShowKeyHelp((v) => !v)}
+                    >
+                      {showKeyHelp
+                        ? "hide the key tutorial"
+                        : "how to create your own encryption key"}
+                    </button>
+                    {showKeyHelp && (
+                      <div className="mt-2 rounded-lg border border-dashed border-[var(--gray-300)] p-3">
+                        <p className="bryl-label normal-case">
+                          by default the encryption key is derived from your
+                          wallet private key. to bring your own key instead:
+                        </p>
+                        <ol className="bryl-label mt-2 list-decimal space-y-1 pl-4 normal-case">
+                          <li>
+                            in a terminal, generate 32 random bytes:{" "}
+                            <code className="bryl-mono">
+                              openssl rand -hex 32
+                            </code>
+                          </li>
+                          <li>
+                            or{" "}
+                            <button
+                              type="button"
+                              className="bryl-link bg-transparent"
+                              onClick={() => setEncKeyInput(generateKeyHex())}
+                            >
+                              generate one in this browser
+                            </button>
+                          </li>
+                          <li>
+                            paste it below and save — then keep a copy
+                            somewhere safe. without the key, encrypted
+                            documents can never be read again.
+                          </li>
+                        </ol>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <input
+                            className="bryl-input bryl-mono min-w-0 flex-1"
+                            value={encKeyInput}
+                            onChange={(e) => setEncKeyInput(e.target.value)}
+                            placeholder="paste or generate a key (min 16 chars)"
+                          />
+                          <button
+                            type="button"
+                            className="bryl-btn"
+                            disabled={
+                              savingEncKey || encKeyInput.trim().length < 16
+                            }
+                            onClick={() => saveEncKey(encKeyInput.trim())}
+                          >
+                            {savingEncKey ? "saving…" : "save key"}
+                          </button>
+                        </div>
+                        {settings?.encryptionKeySet && (
+                          <p className="bryl-label mt-2 normal-case">
+                            ✓ custom key active ·{" "}
+                            <button
+                              type="button"
+                              className="bryl-link bg-transparent"
+                              onClick={() => saveEncKey("")}
+                            >
+                              switch back to the wallet-derived key
+                            </button>
+                          </p>
+                        )}
+                        <p className="bryl-label mt-2 normal-case">
+                          note: changing the key locks documents encrypted
+                          with the previous key until it's restored.
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* 01 — status strip: every cell jumps to its tab below */}
         <section className="mt-6 sm:mt-8">
@@ -936,6 +1408,58 @@ export default function DashboardPage() {
                     empty allows any site. servers and terminals without a
                     listed origin must send the api key.
                   </p>
+                </div>
+                <div>
+                  <label className="bryl-label mb-1.5 block">
+                    data visibility
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="bryl-tabs" role="group" aria-label="data visibility">
+                      <button
+                        type="button"
+                        className="bryl-tab"
+                        data-active={settings?.dataVisibility !== "public"}
+                        disabled={savingVisibility}
+                        onClick={() => setVisibility("private")}
+                      >
+                        private — encrypted
+                      </button>
+                      <button
+                        type="button"
+                        className="bryl-tab"
+                        data-active={settings?.dataVisibility === "public"}
+                        disabled={savingVisibility}
+                        onClick={() => setVisibility("public")}
+                      >
+                        public — plaintext
+                      </button>
+                    </div>
+                    {settings?.encryptionKeySet && (
+                      <span className="bryl-pill">custom key</span>
+                    )}
+                  </div>
+                  {settings?.dataVisibility !== "public" && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <input
+                        className="bryl-input bryl-mono min-w-0 flex-1"
+                        value={encKeyInput}
+                        onChange={(e) => setEncKeyInput(e.target.value)}
+                        placeholder={
+                          settings?.encryptionKeySet
+                            ? "custom key set — paste to replace"
+                            : "custom encryption key (optional — wallet-derived by default)"
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="bryl-btn bryl-btn--ghost"
+                        disabled={savingEncKey || encKeyInput.trim().length < 16}
+                        onClick={() => saveEncKey(encKeyInput.trim())}
+                      >
+                        {savingEncKey ? "saving…" : "save key"}
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <button

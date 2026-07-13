@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes, timingSafeEqual } from "crypto";
+import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import { getConfig } from "./config";
 
 /**
@@ -60,6 +60,68 @@ function keysMatch(a: string, b: string): boolean {
  *  `Sec-Fetch-Site` is a Forbidden header — page scripts can't spoof it. */
 function isSameOrigin(req: NextRequest): boolean {
   return req.headers.get("sec-fetch-site") === "same-origin";
+}
+
+/* ---- Dashboard password (site access) ----
+ * A password in DASHBOARD_PASSWORD locks the dashboard UI and admin
+ * endpoints. Logging in sets an httpOnly session cookie whose value is
+ * derived from the password, so changing the password invalidates every
+ * existing session. No password = open (first-run / local dev); the
+ * dashboard's onboarding pushes the owner to create one.
+ */
+
+export const SESSION_COOKIE = "sbdb_session";
+
+export function dashboardPasswordSet(): boolean {
+  return getConfig().dashboardPassword.length > 0;
+}
+
+function sessionToken(): string | null {
+  const pw = getConfig().dashboardPassword;
+  if (!pw) return null;
+  return createHash("sha256").update(`sbdb:session:v1:${pw}`).digest("hex");
+}
+
+export function verifyDashboardPassword(password: string): boolean {
+  const expected = getConfig().dashboardPassword;
+  return expected.length > 0 && keysMatch(password, expected);
+}
+
+/** True when no password is configured, or the request carries a valid
+ *  session cookie. */
+export function isDashboardAuthed(req: NextRequest): boolean {
+  const expected = sessionToken();
+  if (!expected) return true;
+  const cookie = req.cookies.get(SESSION_COOKIE)?.value ?? "";
+  return keysMatch(cookie, expected);
+}
+
+/** Set the session cookie on a response (call after the password exists). */
+export function attachSession(res: NextResponse): NextResponse {
+  const token = sessionToken();
+  if (token) {
+    res.cookies.set(SESSION_COOKIE, token, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+  }
+  return res;
+}
+
+export function clearSession(res: NextResponse): NextResponse {
+  res.cookies.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+  return res;
+}
+
+/** Same-origin guard for pre-auth endpoints (login itself). */
+export function requireSameOrigin(req: NextRequest): NextResponse | null {
+  if (isSameOrigin(req)) return null;
+  return NextResponse.json(
+    { error: "This endpoint is only available from the dashboard." },
+    { status: 403 }
+  );
 }
 
 /** Whitelisted origins, normalized (lowercase, no trailing slash). */
@@ -146,7 +208,12 @@ export function withApiAuth(handler: Handler): Handler {
       return res;
     };
 
-    if (!isSameOrigin(req)) {
+    // The dashboard is trusted only when it's also unlocked — a terminal
+    // client spoofing `Sec-Fetch-Site: same-origin` still lacks the session
+    // cookie once a dashboard password exists.
+    const trustedDashboard = isSameOrigin(req) && isDashboardAuthed(req);
+
+    if (!trustedDashboard) {
       const expected = getApiKey();
       const hasKeyRule = expected.length > 0;
       const hasDomainRule = getAllowedOrigins().length > 0;
@@ -181,11 +248,23 @@ export function apiOptions(req: NextRequest): NextResponse {
   return new NextResponse(null, { status: 204, headers: corsHeaders(req) });
 }
 
-/** Guard admin-only endpoints (settings, deploy, api-key) to the dashboard. */
+/** Guard admin-only endpoints (settings, deploy, api-key) to the dashboard —
+ *  and, once a password exists, to an unlocked dashboard session. */
 export function requireDashboard(req: NextRequest): NextResponse | null {
-  if (isSameOrigin(req)) return null;
-  return NextResponse.json(
-    { error: "This endpoint is only available from the dashboard." },
-    { status: 403 }
-  );
+  if (!isSameOrigin(req)) {
+    return NextResponse.json(
+      { error: "This endpoint is only available from the dashboard." },
+      { status: 403 }
+    );
+  }
+  if (!isDashboardAuthed(req)) {
+    return NextResponse.json(
+      {
+        error: "Dashboard is locked. Enter the dashboard password.",
+        authRequired: true,
+      },
+      { status: 401 }
+    );
+  }
+  return null;
 }

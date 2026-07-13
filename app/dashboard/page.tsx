@@ -396,8 +396,14 @@ export default function DashboardPage() {
           className="bryl-fade-up flex flex-wrap items-center gap-2"
           style={fade(0)}
         >
-          <span className="bryl-mono mr-auto text-sm font-medium lowercase">
-            ⛓ blockchaindb
+          <span className="bryl-mono mr-auto flex items-center gap-2 text-sm font-medium lowercase">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/starboar.webp"
+              alt=""
+              className="h-5 w-5 rounded object-contain"
+            />
+            starboardb
           </span>
           <div className="order-last flex w-full items-center gap-2 sm:order-none sm:w-auto">
             <div className="bryl-tabs" role="group" aria-label="chain type">
@@ -949,7 +955,7 @@ export default function DashboardPage() {
         </section>
 
         <footer className="bryl-label mt-8 border-t border-[var(--gray-200)] pt-4 sm:mt-10">
-          blockchaindb — self-hosted · one contract · any evm network
+          starboardb — self-hosted · one contract · any evm network
         </footer>
       </div>
     </div>

@@ -18,7 +18,7 @@ const A = "/scroll-world/assets";
  * every seam is frame-identical (architecture A — connectors: []).
  */
 const CONFIG = {
-  brand: { name: "BlockchainDB", href: "#top" },
+  brand: { name: "StarBoarDB", href: "#top" },
   cta: { label: "Launch App", href: "/dashboard" },
   hint: "scroll to fly in",
   diveScroll: 1.35,

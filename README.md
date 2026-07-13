@@ -1,4 +1,4 @@
-# BlockchainDB
+# StarBoarDB
 
 **A self-hosted blockchain database with a Supabase-like dashboard.**
 
@@ -119,7 +119,7 @@ data and power users.
 
 ## Encryption (private by default)
 
-A public blockchain means anyone can read transaction data. BlockchainDB
+A public blockchain means anyone can read transaction data. StarBoarDB
 **encrypts every document payload before it's written on-chain** with
 AES-256-GCM, keyed from your wallet's private key — so the ledger only stores an
 opaque blob and **only the key owner can read it back**.
@@ -162,7 +162,7 @@ headers. `/api/settings`, `/api/deploy`, `/api/apikey` are dashboard-only.
 
 ## Using it as an API (back any website)
 
-BlockchainDB is a REST API you can point a real website or server at.
+StarBoarDB is a REST API you can point a real website or server at.
 
 1. **CORS is enabled** on all data endpoints, so a browser app on any origin can
    call them.

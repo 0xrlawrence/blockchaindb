@@ -3,7 +3,7 @@ import { randomBytes, timingSafeEqual } from "crypto";
 import { getConfig } from "./config";
 
 /**
- * API access control for the data endpoints so BlockchainDB can back an
+ * API access control for the data endpoints so StarBoarDB can back an
  * external website.
  *
  * Model:

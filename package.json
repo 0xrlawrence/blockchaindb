@@ -1,5 +1,5 @@
 {
-  "name": "blockchaindb",
+  "name": "starboardb",
   "version": "0.1.0",
   "private": true,
   "description": "A self-hosted blockchain database with a Supabase-like dashboard. The blockchain is your database.",

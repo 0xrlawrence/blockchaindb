@@ -15,6 +15,7 @@ export async function persistEnv(next: {
   privateKey?: string;
   contractAddress?: string;
   apiKey?: string;
+  allowedOrigins?: string;
 }): Promise<void> {
   const current = getConfig();
   const rpcUrl = next.rpcUrl !== undefined ? next.rpcUrl.trim() : current.rpcUrl;
@@ -26,6 +27,10 @@ export async function persistEnv(next: {
       : current.contractAddress;
   const apiKey =
     next.apiKey !== undefined ? next.apiKey.trim() : current.apiKey;
+  const allowedOrigins =
+    next.allowedOrigins !== undefined
+      ? next.allowedOrigins.trim()
+      : current.allowedOrigins;
 
   try {
     writeEnvFile(ENV_PATH, {
@@ -33,12 +38,13 @@ export async function persistEnv(next: {
       PRIVATE_KEY: privateKey,
       CONTRACT_ADDRESS: contractAddress,
       API_KEY: apiKey,
+      ALLOWED_ORIGINS: allowedOrigins,
     });
   } catch (error) {
     const code = (error as NodeJS.ErrnoException)?.code;
     if (code === "EROFS" || code === "EACCES" || code === "EPERM") {
       throw new Error(
-        "This host has a read-only filesystem (e.g. Vercel/Netlify), so settings can't be saved here. Set RPC_URL / PRIVATE_KEY / CONTRACT_ADDRESS / API_KEY as environment variables in your hosting dashboard instead."
+        "This host has a read-only filesystem (e.g. Vercel/Netlify), so settings can't be saved here. Set RPC_URL / PRIVATE_KEY / CONTRACT_ADDRESS / API_KEY / ALLOWED_ORIGINS as environment variables in your hosting dashboard instead."
       );
     }
     throw error;
@@ -48,4 +54,5 @@ export async function persistEnv(next: {
   process.env.PRIVATE_KEY = privateKey;
   process.env.CONTRACT_ADDRESS = contractAddress;
   process.env.API_KEY = apiKey;
+  process.env.ALLOWED_ORIGINS = allowedOrigins;
 }

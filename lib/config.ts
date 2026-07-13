@@ -11,6 +11,7 @@ export function getConfig(): AppConfig {
     privateKey: key ? (key.startsWith("0x") ? key : `0x${key}`) : "",
     contractAddress: (process.env.CONTRACT_ADDRESS ?? "").trim(),
     apiKey: (process.env.API_KEY ?? "").trim(),
+    allowedOrigins: (process.env.ALLOWED_ORIGINS ?? "").trim(),
   };
 }
 

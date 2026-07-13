@@ -14,15 +14,19 @@ export async function GET(req: NextRequest) {
     rpcUrl: config.rpcUrl,
     contractAddress: config.contractAddress,
     privateKeySet: Boolean(config.privateKey),
+    allowedOrigins: config.allowedOrigins,
     defaultRpcUrl: DEFAULT_RPC_URL,
   });
 }
 
 /**
  * POST /api/settings
- * { "rpcUrl"?: string, "privateKey"?: string, "contractAddress"?: string }
+ * { "rpcUrl"?: string, "privateKey"?: string, "contractAddress"?: string,
+ *   "allowedOrigins"?: string }
  * Persists to .env.local; omitted fields keep their current value,
- * empty strings clear the value.
+ * empty strings clear the value. `allowedOrigins` is a comma/newline
+ * separated list of origins (https://app.example.com, https://*.example.com);
+ * empty means any site may call the data API.
  */
 export async function POST(req: NextRequest) {
   const blocked = requireDashboard(req);
@@ -36,6 +40,29 @@ export async function POST(req: NextRequest) {
       typeof body?.contractAddress === "string"
         ? body.contractAddress
         : undefined;
+    let allowedOrigins: string | undefined =
+      typeof body?.allowedOrigins === "string"
+        ? body.allowedOrigins
+        : undefined;
+
+    if (allowedOrigins?.trim()) {
+      const entries = allowedOrigins
+        .split(/[\s,]+/)
+        .map((o) => o.trim().replace(/\/+$/, ""))
+        .filter(Boolean);
+      const bad = entries.find(
+        (o) => !/^https?:\/\/(\*\.)?[a-z0-9.-]+(:\d+)?$/i.test(o)
+      );
+      if (bad) {
+        return NextResponse.json(
+          {
+            error: `\`allowedOrigins\`: "${bad}" is not a valid origin. Use e.g. https://app.example.com or https://*.example.com (no paths).`,
+          },
+          { status: 400 }
+        );
+      }
+      allowedOrigins = entries.join(",");
+    }
 
     if (
       contractAddress?.trim() &&
@@ -62,7 +89,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await persistEnv({ rpcUrl, privateKey, contractAddress });
+    await persistEnv({ rpcUrl, privateKey, contractAddress, allowedOrigins });
     return NextResponse.json({ saved: true, path: ".env.local" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "save failed";

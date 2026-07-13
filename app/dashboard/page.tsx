@@ -15,6 +15,7 @@ interface SettingsState {
   rpcUrl: string;
   contractAddress: string;
   privateKeySet: boolean;
+  allowedOrigins: string;
 }
 
 function shorten(hash: string | null | undefined): string {
@@ -63,6 +64,7 @@ export default function DashboardPage() {
   // settings
   const [privateKey, setPrivateKey] = useState("");
   const [contractAddress, setContractAddress] = useState("");
+  const [allowedOrigins, setAllowedOrigins] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
   const [deploying, setDeploying] = useState(false);
   const [confirmDeploy, setConfirmDeploy] = useState(false);
@@ -81,9 +83,11 @@ export default function DashboardPage() {
       rpcUrl: s.rpcUrl ?? "",
       contractAddress: s.contractAddress ?? "",
       privateKeySet: Boolean(s.privateKeySet),
+      allowedOrigins: s.allowedOrigins ?? "",
     };
     setSettings(next);
     setContractAddress(next.contractAddress);
+    setAllowedOrigins(next.allowedOrigins.split(",").filter(Boolean).join("\n"));
     return next;
   }, []);
 
@@ -279,6 +283,7 @@ export default function DashboardPage() {
       const payload: Record<string, string> = {
         rpcUrl: settings.rpcUrl,
         contractAddress,
+        allowedOrigins,
       };
       if (privateKey.trim()) payload.privateKey = privateKey.trim();
       const res = await fetch("/api/settings", {
@@ -911,6 +916,26 @@ export default function DashboardPage() {
                     onChange={(e) => setContractAddress(e.target.value)}
                     placeholder="0x… (or deploy below)"
                   />
+                </div>
+                <div>
+                  <label className="bryl-label mb-1.5 block">
+                    allowed domains
+                  </label>
+                  <textarea
+                    className="bryl-input w-full"
+                    rows={3}
+                    value={allowedOrigins}
+                    onChange={(e) => setAllowedOrigins(e.target.value)}
+                    placeholder={
+                      "https://yourapp.com\nhttps://*.yourbusiness.ph"
+                    }
+                  />
+                  <p className="bryl-label mt-1.5 normal-case">
+                    one origin per line — only these sites may call the data
+                    api from a browser (like firebase authorized domains).
+                    empty allows any site. servers and terminals without a
+                    listed origin must send the api key.
+                  </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <button

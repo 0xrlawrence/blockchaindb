@@ -19,6 +19,9 @@ export interface AppConfig {
   privateKey: string;
   contractAddress: string;
   apiKey: string;
+  /** Comma-separated origins allowed to call the data API from a browser
+   *  (e.g. "https://myapp.com,https://*.mybusiness.ph"). Empty = any site. */
+  allowedOrigins: string;
 }
 
 export interface StatusResponse {

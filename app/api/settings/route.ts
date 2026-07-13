@@ -4,6 +4,7 @@ import { getConfig, DEFAULT_RPC_URL } from "@/lib/config";
 import { persistEnv } from "@/lib/env";
 import { requireDashboard } from "@/lib/auth";
 import { hydrateSettings } from "@/lib/settingsStore";
+import { detectHost, canManageHostEnv } from "@/lib/hostEnv";
 
 /** Can this host persist .env.local? (false on Vercel/Netlify, where
  *  dashboard-managed settings fall back to the on-chain store) */
@@ -26,6 +27,8 @@ export async function GET(req: NextRequest) {
   const config = getConfig();
   return NextResponse.json({
     hostWritable: hostWritable(),
+    host: detectHost(),
+    hostEnvManaged: canManageHostEnv(),
     rpcUrl: config.rpcUrl,
     contractAddress: config.contractAddress,
     privateKeySet: Boolean(config.privateKey),
@@ -136,7 +139,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await persistEnv({
+    const { note } = await persistEnv({
       rpcUrl,
       privateKey,
       contractAddress,
@@ -144,7 +147,7 @@ export async function POST(req: NextRequest) {
       dataVisibility,
       encryptionKey,
     });
-    return NextResponse.json({ saved: true, path: ".env.local" });
+    return NextResponse.json({ saved: true, path: ".env.local", note });
   } catch (error) {
     const message = error instanceof Error ? error.message : "save failed";
     return NextResponse.json({ error: message }, { status: 500 });

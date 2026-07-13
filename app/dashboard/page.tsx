@@ -19,6 +19,8 @@ interface SettingsState {
   dataVisibility: "public" | "private";
   encryptionKeySet: boolean;
   hostWritable: boolean;
+  host: "vercel" | "netlify" | "local";
+  hostEnvManaged: boolean;
 }
 
 interface AuthState {
@@ -125,6 +127,8 @@ export default function DashboardPage() {
       dataVisibility: s.dataVisibility === "public" ? "public" : "private",
       encryptionKeySet: Boolean(s.encryptionKeySet),
       hostWritable: s.hostWritable !== false,
+      host: s.host === "vercel" || s.host === "netlify" ? s.host : "local",
+      hostEnvManaged: Boolean(s.hostEnvManaged),
     };
     setSettings(next);
     setContractAddress(next.contractAddress);
@@ -469,7 +473,10 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error(body.error ?? "Save failed");
       setPrivateKey("");
       await Promise.all([loadSettings(), loadStatus()]);
-      setMsg({ kind: "ok", text: "saved to .env.local" });
+      setMsg({
+        kind: "ok",
+        text: typeof body.note === "string" && body.note ? body.note : "saved",
+      });
     } catch (err) {
       setMsg({
         kind: "error",
@@ -1384,11 +1391,44 @@ export default function DashboardPage() {
               <form onSubmit={saveSettings} className="flex flex-col gap-4">
                 {settings && !settings.hostWritable && (
                   <p className="bryl-label rounded-lg border border-dashed border-[var(--gray-300)] p-3 normal-case">
-                    read-only host detected (vercel / netlify) — password,
-                    allowed domains, data visibility and the api key are
-                    saved on-chain automatically. wallet key, rpc url,
-                    contract address and a custom encryption key must be set
-                    as environment variables in your hosting dashboard.
+                    {settings.hostEnvManaged ? (
+                      <>
+                        read-only host with a {settings.host} api token —
+                        wallet key, rpc url, contract address and custom
+                        encryption key save straight to your {settings.host}{" "}
+                        environment from here (cold starts pick them up after
+                        the automatic redeploy). password, allowed domains,
+                        data visibility and the api key save on-chain.
+                      </>
+                    ) : settings.host === "vercel" ? (
+                      <>
+                        read-only host — to edit the wallet key, rpc url,
+                        contract address or a custom encryption key from this
+                        dashboard, add a <b>VERCEL_TOKEN</b> environment
+                        variable (vercel.com → account settings → tokens;
+                        plus <b>VERCEL_TEAM_ID</b> for team projects and{" "}
+                        <b>VERCEL_DEPLOY_HOOK_URL</b> for auto-redeploys),
+                        then redeploy once. password, allowed domains, data
+                        visibility and the api key already save on-chain.
+                      </>
+                    ) : settings.host === "netlify" ? (
+                      <>
+                        read-only host — to edit the wallet key, rpc url,
+                        contract address or a custom encryption key from this
+                        dashboard, add a <b>NETLIFY_AUTH_TOKEN</b> environment
+                        variable (netlify → user settings → applications →
+                        personal access tokens), then redeploy once. password,
+                        allowed domains, data visibility and the api key
+                        already save on-chain.
+                      </>
+                    ) : (
+                      <>
+                        read-only host — wallet key, rpc url, contract address
+                        and a custom encryption key must be set as environment
+                        variables on your host. password, allowed domains,
+                        data visibility and the api key save on-chain.
+                      </>
+                    )}
                   </p>
                 )}
                 <div>

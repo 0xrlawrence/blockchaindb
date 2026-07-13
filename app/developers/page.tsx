@@ -66,8 +66,8 @@ export default function DevelopersPage() {
   const vercelUrl = repoValid
     ? `https://vercel.com/new/clone?repository-url=${encodeURIComponent(
         repo
-      )}&env=RPC_URL,PRIVATE_KEY,CONTRACT_ADDRESS,API_KEY&envDescription=${encodeURIComponent(
-        "RPC URL, wallet private key, deployed contract address, and an API key (any random string)."
+      )}&env=PRIVATE_KEY&envDescription=${encodeURIComponent(
+        "Wallet private key that signs writes — use a dedicated key. Network, contract, API key and password are all configured from the dashboard after deploying."
       )}&project-name=starboardb&repository-name=starboardb`
     : "";
   const netlifyUrl = repoValid

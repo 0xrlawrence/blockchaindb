@@ -8,6 +8,7 @@ import { getConfig } from "./config";
 import { getReadContract, getWriteContract } from "./contract";
 import { withTimeout } from "./blockchain";
 import { setLastTxHash } from "./config";
+import { discoverContract } from "./discover";
 
 /**
  * On-chain settings store — persistence for serverless hosts.
@@ -191,6 +192,9 @@ export function hydrateSettings(): Promise<void> {
     return g.__sbdbHydrate.promise;
   }
   const promise = (async () => {
+    // No contract configured? It may still exist — recompute it from the
+    // wallet's deployment nonces (private-key-only deploys).
+    if (!getConfig().contractAddress) await discoverContract();
     if (!chainReady()) return;
     try {
       const doc = await readDoc();

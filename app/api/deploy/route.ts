@@ -63,7 +63,14 @@ export async function POST(req: NextRequest) {
     // is slow (or this request times out), the tx is already broadcast and its
     // address is saved — so the user never pays twice or loses the address.
     setLastTxHash(deployTx.hash);
-    await persistEnv({ contractAddress: address });
+    try {
+      await persistEnv({ contractAddress: address });
+    } catch {
+      // Read-only host without a provider token: keep the address live on
+      // this instance; auto-discovery recomputes it from the wallet's nonces
+      // on future cold starts, so nothing is lost.
+      process.env.CONTRACT_ADDRESS = address;
+    }
 
     // Wait for mining, but a timeout here is "pending", not a failure.
     let confirmed = true;

@@ -16,8 +16,16 @@ Solidity knowledge required.
 > Replace `0xrlawrence/blockchaindb` with your repo, then use these buttons
 > (they're also on the in-app **API** page):
 
-[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/0xrlawrence/blockchaindb&env=RPC_URL,PRIVATE_KEY,CONTRACT_ADDRESS,API_KEY)
+[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/0xrlawrence/blockchaindb&env=PRIVATE_KEY&envDescription=Wallet%20private%20key%20that%20signs%20writes%20%E2%80%94%20use%20a%20dedicated%20key.%20Everything%20else%20%28network%2C%20contract%2C%20API%20key%2C%20password%29%20is%20configured%20from%20the%20dashboard%20after%20deploying.&project-name=starboardb&repository-name=starboardb)
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/0xrlawrence/blockchaindb)
+
+**Only `PRIVATE_KEY` is asked for at deploy time.** The network defaults to
+Polygon Amoy and is switchable anytime from the dashboard's network dropdown
+(smart presets — no URLs to type). The contract is deployed from the
+dashboard and auto-discovered from your wallet afterwards (its address is
+recomputed from the wallet's deployment nonces, so it survives restarts even
+where it can't be persisted). The API key is generated from the dashboard
+when you actually need one.
 
 On serverless hosts (Vercel/Netlify) the filesystem is read-only, so the
 dashboard stores its own settings — password, allowed domains, data
@@ -34,7 +42,7 @@ or `NETLIFY_AUTH_TOKEN`. The dashboard then writes `RPC_URL` /
 `PRIVATE_KEY` / `CONTRACT_ADDRESS` / `ENCRYPTION_KEY` straight into your
 hosting environment through the provider's API.
 
-Set `RPC_URL`, `PRIVATE_KEY`, `CONTRACT_ADDRESS`, and (optional) `API_KEY` when
+Set `PRIVATE_KEY` when
 the host prompts. **Note:** serverless hosts (Vercel/Netlify) have a read-only
 filesystem, so the in-app Settings/Deploy/API-key writes don't persist there —
 configure via the host's environment variables instead (deploy your contract

@@ -27,6 +27,13 @@ the three bootstrap variables plus an optional custom encryption key must be
 hosting environment variables there; a `DASHBOARD_PASSWORD` env var always
 wins over the on-chain value, which is your lockout recovery path.
 
+Want the bootstrap secrets editable from the deployed dashboard too? Add one
+token env var and redeploy once — `VERCEL_TOKEN` (plus `VERCEL_TEAM_ID` for
+team projects, and optionally `VERCEL_DEPLOY_HOOK_URL` so saves auto-redeploy)
+or `NETLIFY_AUTH_TOKEN`. The dashboard then writes `RPC_URL` /
+`PRIVATE_KEY` / `CONTRACT_ADDRESS` / `ENCRYPTION_KEY` straight into your
+hosting environment through the provider's API.
+
 Set `RPC_URL`, `PRIVATE_KEY`, `CONTRACT_ADDRESS`, and (optional) `API_KEY` when
 the host prompts. **Note:** serverless hosts (Vercel/Netlify) have a read-only
 filesystem, so the in-app Settings/Deploy/API-key writes don't persist there —

@@ -1,16 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
+import { accessSync, constants } from "fs";
 import { getConfig, DEFAULT_RPC_URL } from "@/lib/config";
 import { persistEnv } from "@/lib/env";
 import { requireDashboard } from "@/lib/auth";
+import { hydrateSettings } from "@/lib/settingsStore";
+
+/** Can this host persist .env.local? (false on Vercel/Netlify, where
+ *  dashboard-managed settings fall back to the on-chain store) */
+function hostWritable(): boolean {
+  try {
+    accessSync(process.cwd(), constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export const dynamic = "force-dynamic";
 
 /** GET /api/settings — current values; the private key is only reported as set/unset. */
 export async function GET(req: NextRequest) {
+  await hydrateSettings();
   const blocked = requireDashboard(req);
   if (blocked) return blocked;
   const config = getConfig();
   return NextResponse.json({
+    hostWritable: hostWritable(),
     rpcUrl: config.rpcUrl,
     contractAddress: config.contractAddress,
     privateKeySet: Boolean(config.privateKey),
@@ -31,6 +46,7 @@ export async function GET(req: NextRequest) {
  * empty means any site may call the data API.
  */
 export async function POST(req: NextRequest) {
+  await hydrateSettings();
   const blocked = requireDashboard(req);
   if (blocked) return blocked;
   try {

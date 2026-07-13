@@ -5,6 +5,7 @@ import { getWallet, withTimeout } from "@/lib/blockchain";
 import { networkName, setLastTxHash } from "@/lib/config";
 import { persistEnv } from "@/lib/env";
 import { requireDashboard } from "@/lib/auth";
+import { hydrateSettings } from "@/lib/settingsStore";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ const DEPLOY_TIMEOUT = 180_000;
  * then persists the new address as CONTRACT_ADDRESS in .env.local.
  */
 export async function POST(req: NextRequest) {
+  await hydrateSettings();
   const blocked = requireDashboard(req);
   if (blocked) return blocked;
   try {

@@ -48,10 +48,21 @@ function toDocument(collection: string, raw: RawDocument): DocumentRecord {
  *   await db.delete("users", id)
  */
 export class BlockchainDB {
+  /** Collections starting with "_" are reserved for system storage (the
+   *  on-chain settings store) and hidden from the data API. */
+  private guard(collection: string): void {
+    if (collection.startsWith("_")) {
+      throw new Error(
+        `Collection names starting with "_" are reserved (${collection}).`
+      );
+    }
+  }
+
   async create(
     collection: string,
     data: unknown
   ): Promise<{ id: number; txHash: string }> {
+    this.guard(collection);
     const contract = getWriteContract();
     const tx = await withTimeout(
       contract.create(collection, encryptData(JSON.stringify(data))),
@@ -80,6 +91,7 @@ export class BlockchainDB {
   }
 
   async get(collection: string, id: number): Promise<DocumentRecord> {
+    this.guard(collection);
     const contract = getReadContract();
     const raw = await withTimeout<RawDocument>(contract.get(collection, id));
     return toDocument(collection, raw);
@@ -90,6 +102,7 @@ export class BlockchainDB {
     id: number,
     data: unknown
   ): Promise<{ txHash: string }> {
+    this.guard(collection);
     const contract = getWriteContract();
     const tx = await withTimeout(
       contract.update(collection, id, encryptData(JSON.stringify(data))),
@@ -104,6 +117,7 @@ export class BlockchainDB {
   }
 
   async delete(collection: string, id: number): Promise<{ txHash: string }> {
+    this.guard(collection);
     const contract = getWriteContract();
     const tx = await withTimeout(contract.remove(collection, id), WRITE_TIMEOUT);
     const receipt = await withTimeout<ContractTransactionReceipt>(
@@ -115,12 +129,14 @@ export class BlockchainDB {
   }
 
   async list(collection: string): Promise<DocumentRecord[]> {
+    this.guard(collection);
     const contract = getReadContract();
     const raw = await withTimeout<RawDocument[]>(contract.list(collection));
     return raw.map((doc) => toDocument(collection, doc));
   }
 
   async createCollection(name: string): Promise<{ txHash: string }> {
+    this.guard(name);
     const contract = getWriteContract();
     const tx = await withTimeout(contract.createCollection(name), WRITE_TIMEOUT);
     const receipt = await withTimeout<ContractTransactionReceipt>(
@@ -136,10 +152,12 @@ export class BlockchainDB {
     const [names, counts] = await withTimeout<[string[], bigint[]]>(
       contract.listCollections()
     );
-    return names.map((name, i) => ({
-      name,
-      documentCount: Number(counts[i]),
-    }));
+    return names
+      .map((name, i) => ({
+        name,
+        documentCount: Number(counts[i]),
+      }))
+      .filter((c) => !c.name.startsWith("_")); // hide system collections
   }
 
   async stats(): Promise<{ collections: number; documents: number }> {

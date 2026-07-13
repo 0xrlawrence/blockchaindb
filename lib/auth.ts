@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import { getConfig } from "./config";
+import { hydrateSettings } from "./settingsStore";
 
 /**
  * API access control for the data endpoints so StarBoarDB can back an
@@ -202,6 +203,9 @@ type Handler = (req: NextRequest) => Promise<NextResponse> | NextResponse;
  *  CORS + (domain whitelist OR API key) enforcement. */
 export function withApiAuth(handler: Handler): Handler {
   return async (req: NextRequest) => {
+    // On serverless hosts the password/domains/key live on-chain; overlay
+    // them onto process.env before evaluating any rule.
+    await hydrateSettings();
     const cors = corsHeaders(req);
     const attach = (res: NextResponse) => {
       for (const [k, v] of Object.entries(cors)) res.headers.set(k, v);

@@ -18,6 +18,7 @@ interface SettingsState {
   allowedOrigins: string;
   dataVisibility: "public" | "private";
   encryptionKeySet: boolean;
+  hostWritable: boolean;
 }
 
 interface AuthState {
@@ -45,6 +46,17 @@ function fmtTime(unixSeconds: number): string {
 }
 
 const fade = (i: number) => ({ "--fade-delay": i }) as React.CSSProperties;
+
+/** Parse a response body without throwing on non-JSON error pages (a 500
+ *  from a serverless host can be HTML/plaintext). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function readJson(res: Response): Promise<any> {
+  try {
+    return await res.json();
+  } catch {
+    return { error: `unexpected ${res.status} response from the server` };
+  }
+}
 
 export default function DashboardPage() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
@@ -112,6 +124,7 @@ export default function DashboardPage() {
       allowedOrigins: s.allowedOrigins ?? "",
       dataVisibility: s.dataVisibility === "public" ? "public" : "private",
       encryptionKeySet: Boolean(s.encryptionKeySet),
+      hostWritable: s.hostWritable !== false,
     };
     setSettings(next);
     setContractAddress(next.contractAddress);
@@ -202,7 +215,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "login", password: unlockPw }),
       });
-      const body = await res.json();
+      const body = await readJson(res);
       if (!res.ok) throw new Error(body.error ?? "Login failed");
       setUnlockPw("");
       setAuth({ passwordSet: true, authed: true });
@@ -230,7 +243,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "setup", password: newPw }),
       });
-      const body = await res.json();
+      const body = await readJson(res);
       if (!res.ok) throw new Error(body.error ?? "Setup failed");
       setNewPw("");
       setNewPw2("");
@@ -262,7 +275,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dataVisibility: visibility }),
       });
-      const body = await res.json();
+      const body = await readJson(res);
       if (!res.ok) throw new Error(body.error ?? "Save failed");
       await Promise.all([loadSettings(), loadStatus()]);
       setMsg({
@@ -291,7 +304,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ encryptionKey: key }),
       });
-      const body = await res.json();
+      const body = await readJson(res);
       if (!res.ok) throw new Error(body.error ?? "Save failed");
       setEncKeyInput("");
       await Promise.all([loadSettings(), loadStatus()]);
@@ -322,7 +335,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rpcUrl }),
       });
-      const body = await res.json();
+      const body = await readJson(res);
       if (!res.ok) throw new Error(body.error ?? "Switch failed");
       const [, next] = await Promise.all([loadSettings(), loadStatus()]);
       const cols = await loadCollections();
@@ -354,7 +367,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newColName.trim() }),
       });
-      const body = await res.json();
+      const body = await readJson(res);
       if (!res.ok) throw new Error(body.error ?? "Transaction failed");
       setNewColName("");
       const cols = await loadCollections();
@@ -389,7 +402,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ collection: selectedCollection, data }),
       });
-      const body = await res.json();
+      const body = await readJson(res);
       if (!res.ok) throw new Error(body.error ?? "Transaction failed");
       setNewDocJson("");
       setNewDocOpen(false);
@@ -418,7 +431,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ collection: selectedCollection, id: doc.id }),
       });
-      const body = await res.json();
+      const body = await readJson(res);
       if (!res.ok) throw new Error(body.error ?? "Transaction failed");
       await Promise.all([
         loadDocuments(selectedCollection),
@@ -452,7 +465,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const body = await res.json();
+      const body = await readJson(res);
       if (!res.ok) throw new Error(body.error ?? "Save failed");
       setPrivateKey("");
       await Promise.all([loadSettings(), loadStatus()]);
@@ -492,7 +505,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ confirm: true }),
       });
-      const body = await res.json();
+      const body = await readJson(res);
       if (!res.ok) throw new Error(body.error ?? "Deploy failed");
       setContractAddress(body.address);
       await Promise.all([loadSettings(), loadStatus(), loadCollections()]);
@@ -782,6 +795,14 @@ export default function DashboardPage() {
                     {authMsg && (
                       <p className="bryl-mono mt-2 text-xs text-red-600">
                         ✕ {authMsg}
+                      </p>
+                    )}
+                    {settings && !settings.hostWritable && (
+                      <p className="bryl-label mt-2 normal-case">
+                        this host is read-only, so the password is stored
+                        on-chain (encrypted) — it needs the chain connection
+                        below and a little gas. alternatively set
+                        DASHBOARD_PASSWORD as a hosting environment variable.
                       </p>
                     )}
                   </>
@@ -1361,6 +1382,15 @@ export default function DashboardPage() {
           {tab === "settings" && (
             <div key="settings" className="bryl-panel bryl-card bg-white p-3 sm:p-4">
               <form onSubmit={saveSettings} className="flex flex-col gap-4">
+                {settings && !settings.hostWritable && (
+                  <p className="bryl-label rounded-lg border border-dashed border-[var(--gray-300)] p-3 normal-case">
+                    read-only host detected (vercel / netlify) — password,
+                    allowed domains, data visibility and the api key are
+                    saved on-chain automatically. wallet key, rpc url,
+                    contract address and a custom encryption key must be set
+                    as environment variables in your hosting dashboard.
+                  </p>
+                )}
                 <div>
                   <label className="bryl-label mb-1.5 block">
                     wallet private key

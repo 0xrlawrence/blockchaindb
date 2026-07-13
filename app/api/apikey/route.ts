@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getApiKey, generateApiKey, requireDashboard } from "@/lib/auth";
 import { persistEnv } from "@/lib/env";
+import { hydrateSettings } from "@/lib/settingsStore";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
  * external callers get a 403.
  */
 export async function GET(req: NextRequest) {
+  await hydrateSettings();
   const blocked = requireDashboard(req);
   if (blocked) return blocked;
   const key = getApiKey();
@@ -22,6 +24,7 @@ export async function GET(req: NextRequest) {
  * { "action":"clear" } → remove the key (API becomes open)
  */
 export async function POST(req: NextRequest) {
+  await hydrateSettings();
   const blocked = requireDashboard(req);
   if (blocked) return blocked;
   try {

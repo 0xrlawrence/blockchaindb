@@ -1,14 +1,21 @@
 import path from "path";
 import { getConfig } from "./config";
 import { writeEnvFile } from "./envfile.mjs";
+import { writeChainSettings, type ChainSettingKey } from "./settingsStore";
 
 const ENV_PATH = path.join(process.cwd(), ".env.local");
 
 /**
- * Persist connection settings to .env.local and apply them to the running
- * process immediately. Omitted fields keep their current value; empty strings
- * clear the value. Every other line in .env.local (comments, unrelated
- * variables) is preserved, and values are safely encoded (see envfile.mjs).
+ * Persist connection settings and apply them to the running process
+ * immediately. Omitted fields keep their current value; empty strings clear
+ * the value.
+ *
+ * On a writable host everything goes to `.env.local` (comments and unrelated
+ * variables preserved — see envfile.mjs). On a read-only host (Vercel,
+ * Netlify) the dashboard-managed settings — password, allowed domains, data
+ * visibility, api key — fall back to the encrypted on-chain settings store;
+ * only the chain-bootstrap secrets (RPC_URL, PRIVATE_KEY, CONTRACT_ADDRESS,
+ * ENCRYPTION_KEY) still require hosting environment variables there.
  */
 export async function persistEnv(next: {
   rpcUrl?: string;
@@ -60,12 +67,45 @@ export async function persistEnv(next: {
     });
   } catch (error) {
     const code = (error as NodeJS.ErrnoException)?.code;
-    if (code === "EROFS" || code === "EACCES" || code === "EPERM") {
+    if (code !== "EROFS" && code !== "EACCES" && code !== "EPERM") throw error;
+
+    // Read-only host. Bootstrap secrets can only live in hosting env vars…
+    const bootstrapChanged: string[] = [];
+    if (next.rpcUrl !== undefined && rpcUrl !== current.rpcUrl)
+      bootstrapChanged.push("RPC_URL");
+    if (next.privateKey !== undefined && privateKey !== current.privateKey)
+      bootstrapChanged.push("PRIVATE_KEY");
+    if (
+      next.contractAddress !== undefined &&
+      contractAddress !== current.contractAddress
+    )
+      bootstrapChanged.push("CONTRACT_ADDRESS");
+    if (
+      next.encryptionKey !== undefined &&
+      encryptionKey !== current.encryptionKey
+    )
+      bootstrapChanged.push("ENCRYPTION_KEY");
+    if (bootstrapChanged.length > 0) {
       throw new Error(
-        "This host has a read-only filesystem (e.g. Vercel/Netlify), so settings can't be saved here. Set RPC_URL / PRIVATE_KEY / CONTRACT_ADDRESS / API_KEY / ALLOWED_ORIGINS as environment variables in your hosting dashboard instead."
+        `This host has a read-only filesystem (e.g. Vercel/Netlify), so ${bootstrapChanged.join(
+          " / "
+        )} can't be saved from the dashboard here. Set ${bootstrapChanged.length === 1 ? "it" : "them"} as environment variables in your hosting dashboard, then redeploy.`
       );
     }
-    throw error;
+
+    // …while dashboard-managed settings go to the on-chain store.
+    const chainPartial: Partial<Record<ChainSettingKey, string>> = {};
+    if (next.dashboardPassword !== undefined)
+      chainPartial.DASHBOARD_PASSWORD = dashboardPassword;
+    if (next.allowedOrigins !== undefined)
+      chainPartial.ALLOWED_ORIGINS = allowedOrigins;
+    if (next.dataVisibility !== undefined)
+      chainPartial.DATA_VISIBILITY = dataVisibility;
+    if (next.apiKey !== undefined) chainPartial.API_KEY = apiKey;
+
+    if (Object.keys(chainPartial).length > 0) {
+      await writeChainSettings(chainPartial);
+    }
   }
 
   process.env.RPC_URL = rpcUrl;

@@ -67,7 +67,9 @@ export default function DevelopersPage() {
     ? `https://vercel.com/new/clone?repository-url=${encodeURIComponent(
         repo
       )}&env=PRIVATE_KEY&envDescription=${encodeURIComponent(
-        "Wallet private key that signs writes — use a dedicated key. Network, contract, API key and password are all configured from the dashboard after deploying."
+        "Wallet private key that signs writes — use a dedicated key. Everything else (network, contract, API key, password) is configured from the dashboard after deploying. Default network: Polygon Amoy — grab free test POL from the Amoy faucet first (link →)."
+      )}&envLink=${encodeURIComponent(
+        "https://faucet.polygon.technology/"
       )}&project-name=starboardb&repository-name=starboardb`
     : "";
   const netlifyUrl = repoValid

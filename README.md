@@ -16,7 +16,7 @@ Solidity knowledge required.
 > Replace `0xrlawrence/blockchaindb` with your repo, then use these buttons
 > (they're also on the in-app **API** page):
 
-[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/0xrlawrence/blockchaindb&env=PRIVATE_KEY&envDescription=Wallet%20private%20key%20that%20signs%20writes%20%E2%80%94%20use%20a%20dedicated%20key.%20Everything%20else%20%28network%2C%20contract%2C%20API%20key%2C%20password%29%20is%20configured%20from%20the%20dashboard%20after%20deploying.&project-name=starboardb&repository-name=starboardb)
+[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/0xrlawrence/blockchaindb&env=PRIVATE_KEY&envDescription=Wallet%20private%20key%20that%20signs%20writes%20%E2%80%94%20use%20a%20dedicated%20key.%20Everything%20else%20%28network%2C%20contract%2C%20API%20key%2C%20password%29%20is%20configured%20from%20the%20dashboard%20after%20deploying.%20Default%20network%3A%20Polygon%20Amoy%20%E2%80%94%20grab%20free%20test%20POL%20from%20the%20Amoy%20faucet%20first%20%28link%20%E2%86%92%29.&envLink=https%3A//faucet.polygon.technology/&project-name=starboardb&repository-name=starboardb)
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/0xrlawrence/blockchaindb)
 
 **Only `PRIVATE_KEY` is asked for at deploy time.** The network defaults to

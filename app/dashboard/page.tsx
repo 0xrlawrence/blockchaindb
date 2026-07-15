@@ -588,6 +588,22 @@ export default function DashboardPage() {
       ? !(passwordDone && connectionDone && visibilityDone)
       : false;
 
+  const contractReady = status?.configured.contract ?? false;
+  const walletReady = status?.configured.wallet ?? false;
+  // Where can dashboard-managed settings (including the password) actually be
+  // saved? A writable host, a provider token, or a deployed contract (on-chain
+  // store). On a read-only host with none of those, the password has nowhere
+  // to persist until the database is deployed — so gate it rather than error.
+  const canPersistSettings = settings
+    ? settings.hostWritable || settings.hostEnvManaged || contractReady
+    : true;
+  const passwordBlocked = !passwordDone && !canPersistSettings;
+  const walletNeedsGas = Boolean(
+    walletReady &&
+      status?.wallet &&
+      Number(status.wallet.balance) === 0
+  );
+
   // Locked instance: nothing renders until the owner enters the password.
   if (auth?.passwordSet && !auth.authed) {
     return (
@@ -765,6 +781,89 @@ export default function DashboardPage() {
                     this dashboard is password-protected — use the lock pill in
                     the header to sign out
                   </p>
+                ) : passwordBlocked ? (
+                  <>
+                    <p className="bryl-label mt-2 normal-case">
+                      no password detected — anyone who can reach this url can
+                      read and write your database. this host is read-only, so
+                      your password (and settings) save on-chain — deploy your
+                      database once and the password field unlocks right here.
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className={`bryl-btn ${confirmDeploy ? "" : "bryl-btn--ghost"}`}
+                        disabled={deploying || !walletReady || walletNeedsGas}
+                        onClick={deploy}
+                      >
+                        {deploying
+                          ? "deploying…"
+                          : confirmDeploy
+                            ? `confirm — deploy on ${net?.name?.toLowerCase() ?? "this chain"}`
+                            : "deploy database"}
+                      </button>
+                      {confirmDeploy && !deploying && (
+                        <button
+                          type="button"
+                          className="bryl-link bg-transparent text-xs"
+                          onClick={() => setConfirmDeploy(false)}
+                        >
+                          cancel
+                        </button>
+                      )}
+                    </div>
+                    {!walletReady && (
+                      <p className="bryl-label mt-2 normal-case">
+                        set your wallet private key first — the chain connection
+                        step below.
+                      </p>
+                    )}
+                    {walletNeedsGas && (
+                      <p className="bryl-label mt-2 normal-case">
+                        wallet {shorten(status?.wallet?.address)} has no gas to
+                        pay for the deploy
+                        {net?.testnet && net.faucetUrl ? (
+                          <>
+                            {" — get free test "}
+                            {net.currency}{" from the "}
+                            <a
+                              href={net.faucetUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="bryl-link"
+                            >
+                              faucet ↗
+                            </a>
+                            {", then reload"}
+                          </>
+                        ) : (
+                          " — fund it, then reload"
+                        )}
+                      </p>
+                    )}
+                    {msg && (
+                      <p
+                        className={`bryl-mono mt-2 text-xs ${
+                          msg.kind === "ok"
+                            ? "text-[var(--gray-500)]"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {msg.kind === "ok" ? "✓" : "✕"} {msg.text}
+                      </p>
+                    )}
+                    <p className="bryl-label mt-2 normal-case">
+                      prefer environment variables? set{" "}
+                      <code className="bryl-mono">DASHBOARD_PASSWORD</code>{" "}
+                      directly, or add a{" "}
+                      <code className="bryl-mono">
+                        {settings?.host === "netlify"
+                          ? "NETLIFY_AUTH_TOKEN"
+                          : "VERCEL_TOKEN"}
+                      </code>{" "}
+                      to manage every field from this dashboard — then redeploy.
+                    </p>
+                  </>
                 ) : (
                   <>
                     <p className="bryl-label mt-2 normal-case">
@@ -806,10 +905,10 @@ export default function DashboardPage() {
                     )}
                     {settings && !settings.hostWritable && (
                       <p className="bryl-label mt-2 normal-case">
-                        this host is read-only, so the password is stored
-                        on-chain (encrypted) — it needs the chain connection
-                        below and a little gas. alternatively set
-                        DASHBOARD_PASSWORD as a hosting environment variable.
+                        this host is read-only — the password is stored on-chain
+                        (encrypted). alternatively set{" "}
+                        <code className="bryl-mono">DASHBOARD_PASSWORD</code> as
+                        a hosting environment variable.
                       </p>
                     )}
                   </>
@@ -832,15 +931,78 @@ export default function DashboardPage() {
                   <p className="bryl-label mt-2 normal-case">
                     rpc, wallet and contract are configured
                   </p>
+                ) : walletReady && !contractReady ? (
+                  // wallet is set, only the contract is missing → deploy inline
+                  <>
+                    <p className="bryl-label mt-2 normal-case">
+                      wallet connected on{" "}
+                      {net?.name?.toLowerCase() ?? "the default network"} — now
+                      deploy your database (one-time, costs a little gas).
+                      switch chains anytime from the network dropdown up top.
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className={`bryl-btn ${confirmDeploy ? "" : "bryl-btn--ghost"}`}
+                        disabled={deploying || walletNeedsGas}
+                        onClick={deploy}
+                      >
+                        {deploying
+                          ? "deploying…"
+                          : confirmDeploy
+                            ? `confirm — deploy on ${net?.name?.toLowerCase() ?? "this chain"}`
+                            : "deploy database"}
+                      </button>
+                      {confirmDeploy && !deploying && (
+                        <button
+                          type="button"
+                          className="bryl-link bg-transparent text-xs"
+                          onClick={() => setConfirmDeploy(false)}
+                        >
+                          cancel
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="bryl-link bg-transparent text-xs"
+                        onClick={() => setTab("settings")}
+                      >
+                        or paste an existing address
+                      </button>
+                    </div>
+                    {walletNeedsGas && (
+                      <p className="bryl-label mt-2 normal-case">
+                        wallet {shorten(status?.wallet?.address)} has no gas
+                        {net?.testnet && net.faucetUrl ? (
+                          <>
+                            {" — get free test "}
+                            {net.currency}
+                            {" from the "}
+                            <a
+                              href={net.faucetUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="bryl-link"
+                            >
+                              faucet ↗
+                            </a>
+                            {", then reload"}
+                          </>
+                        ) : (
+                          " — fund it, then reload"
+                        )}
+                      </p>
+                    )}
+                  </>
                 ) : (
                   <>
                     <p className="bryl-label mt-2 normal-case">
                       missing:{" "}
                       {[
                         !status?.configured.rpc && "rpc url",
-                        !status?.configured.wallet && "wallet private key",
-                        !status?.configured.contract &&
-                          "contract (paste an address or deploy)",
+                        !status?.configured.wallet &&
+                          "wallet private key (set it as a hosting env var)",
+                        !status?.configured.contract && "contract (deploy it)",
                       ]
                         .filter(Boolean)
                         .join(" · ")}

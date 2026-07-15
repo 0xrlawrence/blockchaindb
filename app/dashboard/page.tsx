@@ -98,7 +98,6 @@ export default function DashboardPage() {
   const [creatingCol, setCreatingCol] = useState(false);
 
   // settings
-  const [privateKey, setPrivateKey] = useState("");
   const [contractAddress, setContractAddress] = useState("");
   const [allowedOrigins, setAllowedOrigins] = useState("");
 
@@ -424,7 +423,6 @@ export default function DashboardPage() {
         contractAddress,
         allowedOrigins,
       };
-      if (privateKey.trim()) payload.privateKey = privateKey.trim();
       const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -432,7 +430,6 @@ export default function DashboardPage() {
       });
       const body = await readJson(res);
       if (!res.ok) throw new Error(body.error ?? "Save failed");
-      setPrivateKey("");
       await Promise.all([loadSettings(), loadStatus()]);
       setMsg({
         kind: "ok",
@@ -458,16 +455,13 @@ export default function DashboardPage() {
     setDeploying(true);
     setMsg(null);
     try {
-      const payload: Record<string, string> = { contractAddress };
-      if (privateKey.trim()) payload.privateKey = privateKey.trim();
       const saveRes = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ contractAddress }),
       });
       const saveBody = await saveRes.json();
       if (!saveRes.ok) throw new Error(saveBody.error ?? "Save failed");
-      setPrivateKey("");
 
       const res = await fetch("/api/deploy", {
         method: "POST",
@@ -1454,30 +1448,13 @@ export default function DashboardPage() {
               <form onSubmit={saveSettings} className="flex flex-col gap-4">
                 <div>
                   <label className="bryl-label mb-1.5 block">
-                    wallet private key
-                  </label>
-                  <input
-                    type="password"
-                    autoComplete="off"
-                    className="bryl-input w-full"
-                    value={privateKey}
-                    onChange={(e) => setPrivateKey(e.target.value)}
-                    placeholder={
-                      settings?.privateKeySet
-                        ? "•••••••• (already set — type to replace)"
-                        : "0x…"
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="bryl-label mb-1.5 block">
                     contract address
                   </label>
                   <input
                     className="bryl-input w-full"
                     value={contractAddress}
                     onChange={(e) => setContractAddress(e.target.value)}
-                    placeholder="0x… (or deploy below)"
+                    placeholder="0x… (deployed from setup, or paste one)"
                   />
                 </div>
                 <div>
@@ -1504,36 +1481,17 @@ export default function DashboardPage() {
                   <button
                     type="submit"
                     className="bryl-btn"
-                    disabled={savingSettings || deploying || !settings}
+                    disabled={savingSettings || !settings}
                   >
-                    {savingSettings ? "saving…" : "save"}
-                  </button>
-                  <button
-                    type="button"
-                    className={`bryl-btn ${confirmDeploy ? "" : "bryl-btn--ghost"}`}
-                    disabled={deploying || savingSettings || !settings}
-                    onClick={deploy}
-                  >
-                    {deploying ? (
+                    {savingSettings ? (
                       <>
                         <span className="bryl-spin mr-1.5" />
-                        deploying…
+                        saving…
                       </>
-                    ) : confirmDeploy ? (
-                      `confirm deploy on ${net?.name?.toLowerCase() ?? "this chain"}`
                     ) : (
-                      "deploy database.sol"
+                      "save"
                     )}
                   </button>
-                  {confirmDeploy && !deploying && (
-                    <button
-                      type="button"
-                      className="bryl-link bg-transparent text-xs"
-                      onClick={() => setConfirmDeploy(false)}
-                    >
-                      cancel
-                    </button>
-                  )}
                 </div>
                 {renderMsg()}
               </form>

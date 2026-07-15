@@ -1690,39 +1690,40 @@ export default function DashboardPage() {
                     {settings.hostEnvManaged ? (
                       <>
                         read-only host with a {settings.host} api token —
-                        wallet key, rpc url, contract address and custom
-                        encryption key save straight to your {settings.host}{" "}
-                        environment from here (cold starts pick them up after
-                        the automatic redeploy). password, allowed domains,
-                        data visibility and the api key save on-chain.
+                        wallet key, rpc url and contract address save straight
+                        to your {settings.host} environment from here (cold
+                        starts pick them up after the automatic redeploy).
+                        password, allowed domains, data visibility, api key and
+                        the encryption key save on-chain.
                       </>
                     ) : settings.host === "vercel" ? (
                       <>
-                        read-only host — to edit the wallet key, rpc url,
-                        contract address or a custom encryption key from this
-                        dashboard, add a <b>VERCEL_TOKEN</b> environment
-                        variable (vercel.com → account settings → tokens;
-                        plus <b>VERCEL_TEAM_ID</b> for team projects and{" "}
-                        <b>VERCEL_DEPLOY_HOOK_URL</b> for auto-redeploys),
-                        then redeploy once. password, allowed domains, data
-                        visibility and the api key already save on-chain.
+                        read-only host — password, allowed domains, data
+                        visibility, api key and the encryption key already save
+                        on-chain from here. only the wallet key, rpc url and
+                        contract address need env vars — add a{" "}
+                        <b>VERCEL_TOKEN</b> (vercel.com → account settings →
+                        tokens; plus <b>VERCEL_TEAM_ID</b> for team projects and{" "}
+                        <b>VERCEL_DEPLOY_HOOK_URL</b> for auto-redeploys) to edit
+                        those here too, then redeploy once.
                       </>
                     ) : settings.host === "netlify" ? (
                       <>
-                        read-only host — to edit the wallet key, rpc url,
-                        contract address or a custom encryption key from this
-                        dashboard, add a <b>NETLIFY_AUTH_TOKEN</b> environment
-                        variable (netlify → user settings → applications →
-                        personal access tokens), then redeploy once. password,
-                        allowed domains, data visibility and the api key
-                        already save on-chain.
+                        read-only host — password, allowed domains, data
+                        visibility, api key and the encryption key already save
+                        on-chain from here. only the wallet key, rpc url and
+                        contract address need env vars — add a{" "}
+                        <b>NETLIFY_AUTH_TOKEN</b> (netlify → user settings →
+                        applications → personal access tokens) to edit those
+                        here too, then redeploy once.
                       </>
                     ) : (
                       <>
-                        read-only host — wallet key, rpc url, contract address
-                        and a custom encryption key must be set as environment
-                        variables on your host. password, allowed domains,
-                        data visibility and the api key save on-chain.
+                        read-only host — password, allowed domains, data
+                        visibility, api key and the encryption key save
+                        on-chain from here. the wallet key, rpc url and contract
+                        address must be set as environment variables on your
+                        host.
                       </>
                     )}
                   </p>

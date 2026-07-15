@@ -14,11 +14,11 @@ const ENV_PATH = path.join(process.cwd(), ".env.local");
  * On a writable host everything goes to `.env.local` (comments and unrelated
  * variables preserved — see envfile.mjs). On a read-only host (Vercel,
  * Netlify) the dashboard-managed settings — password, allowed domains, data
- * visibility, api key — fall back to the encrypted on-chain settings store,
- * and the chain-bootstrap secrets (RPC_URL, PRIVATE_KEY, CONTRACT_ADDRESS,
- * ENCRYPTION_KEY) go through the hosting provider's own env API when a
- * provider token is configured (see hostEnv.ts) — otherwise they report a
- * clear per-key message pointing at the hosting dashboard.
+ * visibility, api key, and the encryption key — fall back to the encrypted
+ * on-chain settings store, and only the true chain-bootstrap secrets
+ * (RPC_URL, PRIVATE_KEY, CONTRACT_ADDRESS) go through the hosting provider's
+ * own env API when a provider token is configured (see hostEnv.ts) —
+ * otherwise they report a clear per-key message pointing at the host.
  *
  * Returns an optional human-readable note about where the values went.
  */
@@ -88,11 +88,6 @@ export async function persistEnv(next: {
       contractAddress !== current.contractAddress
     )
       bootstrapChanged.CONTRACT_ADDRESS = contractAddress;
-    if (
-      next.encryptionKey !== undefined &&
-      encryptionKey !== current.encryptionKey
-    )
-      bootstrapChanged.ENCRYPTION_KEY = encryptionKey;
 
     if (Object.keys(bootstrapChanged).length > 0) {
       if (canManageHostEnv()) {
@@ -116,6 +111,8 @@ export async function persistEnv(next: {
     if (next.dataVisibility !== undefined)
       chainPartial.DATA_VISIBILITY = dataVisibility;
     if (next.apiKey !== undefined) chainPartial.API_KEY = apiKey;
+    if (next.encryptionKey !== undefined)
+      chainPartial.ENCRYPTION_KEY = encryptionKey;
 
     if (Object.keys(chainPartial).length > 0) {
       try {

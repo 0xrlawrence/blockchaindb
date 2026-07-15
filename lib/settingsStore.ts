@@ -33,12 +33,16 @@ import { discoverContract } from "./discover";
 
 export const SETTINGS_COLLECTION = "_settings";
 
-/** env keys that may live on-chain (everything else is bootstrap-only) */
+/** env keys that may live on-chain (everything else is bootstrap-only).
+ *  ENCRYPTION_KEY is safe here: the settings blob is encrypted with the
+ *  wallet PRIVATE_KEY (not the ENCRYPTION_KEY), so there's no circular
+ *  dependency and it can be set from the dashboard on read-only hosts. */
 export const CHAIN_SETTING_KEYS = [
   "DASHBOARD_PASSWORD",
   "ALLOWED_ORIGINS",
   "DATA_VISIBILITY",
   "API_KEY",
+  "ENCRYPTION_KEY",
 ] as const;
 export type ChainSettingKey = (typeof CHAIN_SETTING_KEYS)[number];
 

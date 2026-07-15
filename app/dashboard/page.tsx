@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { NETWORKS, findByRpcUrl } from "@/lib/networks";
+import { looseParse, coerceScalar } from "@/lib/looseJson";
 import type {
   CollectionInfo,
   DocumentRecord,
@@ -10,6 +11,11 @@ import type {
 
 type Tab = "collections" | "documents" | "network" | "settings";
 type Side = "testnet" | "mainnet";
+type DocMode = "fields" | "raw";
+interface Field {
+  key: string;
+  value: string;
+}
 
 interface SettingsState {
   rpcUrl: string;
@@ -81,6 +87,11 @@ export default function DashboardPage() {
   const [docsLoading, setDocsLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [newDocOpen, setNewDocOpen] = useState(false);
+  const [docMode, setDocMode] = useState<DocMode>("fields");
+  const [fields, setFields] = useState<Field[]>([
+    { key: "", value: "" },
+    { key: "", value: "" },
+  ]);
   const [newDocJson, setNewDocJson] = useState("");
   const [creatingDoc, setCreatingDoc] = useState(false);
   const [busyDocId, setBusyDocId] = useState<number | null>(null);
@@ -388,16 +399,32 @@ export default function DashboardPage() {
     }
   };
 
+  // Build the document payload from whichever editor mode is active.
+  const buildDocData = (): { ok: true; data: unknown } | { ok: false; error: string } => {
+    if (docMode === "fields") {
+      const named = fields.filter((f) => f.key.trim());
+      if (named.length === 0) {
+        return { ok: false, error: "add at least one field" };
+      }
+      const obj: Record<string, unknown> = {};
+      for (const f of named) obj[f.key.trim()] = coerceScalar(f.value);
+      return { ok: true, data: obj };
+    }
+    const parsed = looseParse(newDocJson);
+    return parsed.ok
+      ? { ok: true, data: parsed.value }
+      : { ok: false, error: parsed.error };
+  };
+
   const createDocument = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCollection) return;
-    let data: unknown;
-    try {
-      data = JSON.parse(newDocJson);
-    } catch {
-      setMsg({ kind: "error", text: "invalid json" });
+    const built = buildDocData();
+    if (!built.ok) {
+      setMsg({ kind: "error", text: built.error });
       return;
     }
+    const data = built.data;
     setCreatingDoc(true);
     setMsg(null);
     try {
@@ -409,6 +436,10 @@ export default function DashboardPage() {
       const body = await readJson(res);
       if (!res.ok) throw new Error(body.error ?? "Transaction failed");
       setNewDocJson("");
+      setFields([
+        { key: "", value: "" },
+        { key: "", value: "" },
+      ]);
       setNewDocOpen(false);
       await Promise.all([
         loadDocuments(selectedCollection),
@@ -1318,18 +1349,121 @@ export default function DashboardPage() {
               </div>
 
               {newDocOpen && (
-                <form onSubmit={createDocument} className="mb-4 flex flex-col gap-2">
-                  <textarea
-                    className="bryl-input w-full"
-                    rows={3}
-                    value={newDocJson}
-                    onChange={(e) => setNewDocJson(e.target.value)}
-                    placeholder='{"name": "ada", "role": "admin"}'
-                  />
+                <form
+                  onSubmit={createDocument}
+                  className="mb-4 flex flex-col gap-2 rounded-lg border border-[var(--gray-200)] bg-[var(--gray-50)] p-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="bryl-tabs" role="group" aria-label="editor mode">
+                      <button
+                        type="button"
+                        className="bryl-tab"
+                        data-active={docMode === "fields"}
+                        onClick={() => setDocMode("fields")}
+                      >
+                        fields
+                      </button>
+                      <button
+                        type="button"
+                        className="bryl-tab"
+                        data-active={docMode === "raw"}
+                        onClick={() => setDocMode("raw")}
+                      >
+                        json
+                      </button>
+                    </div>
+                    <span className="bryl-label">
+                      {docMode === "fields"
+                        ? "plain fields — no quotes needed"
+                        : "paste json (loose ok)"}
+                    </span>
+                  </div>
+
+                  {docMode === "fields" ? (
+                    <>
+                      {fields.map((f, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <input
+                            className="bryl-input w-1/3 min-w-0"
+                            placeholder="field"
+                            value={f.key}
+                            onChange={(e) =>
+                              setFields((fs) =>
+                                fs.map((x, j) =>
+                                  j === i ? { ...x, key: e.target.value } : x
+                                )
+                              )
+                            }
+                          />
+                          <input
+                            className="bryl-input min-w-0 flex-1"
+                            placeholder="value"
+                            value={f.value}
+                            onChange={(e) =>
+                              setFields((fs) =>
+                                fs.map((x, j) =>
+                                  j === i ? { ...x, value: e.target.value } : x
+                                )
+                              )
+                            }
+                          />
+                          <button
+                            type="button"
+                            className="bryl-mono px-1 text-xs text-[var(--gray-400)] hover:text-red-600"
+                            onClick={() =>
+                              setFields((fs) =>
+                                fs.length > 1
+                                  ? fs.filter((_, j) => j !== i)
+                                  : [{ key: "", value: "" }]
+                              )
+                            }
+                            title="remove field"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="bryl-link self-start bg-transparent text-xs"
+                        onClick={() =>
+                          setFields((fs) => [...fs, { key: "", value: "" }])
+                        }
+                      >
+                        + add field
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <textarea
+                        className="bryl-input bryl-mono w-full"
+                        rows={4}
+                        value={newDocJson}
+                        onChange={(e) => setNewDocJson(e.target.value)}
+                        placeholder={
+                          "name: ada\nrole: admin\nage: 30\n\n— or —  {\"name\": \"ada\", \"age\": 30}"
+                        }
+                      />
+                      {newDocJson.trim() &&
+                        (() => {
+                          const p = looseParse(newDocJson);
+                          return p.ok ? (
+                            <p className="bryl-mono truncate text-xs text-[var(--gray-500)]">
+                              → {JSON.stringify(p.value)}
+                            </p>
+                          ) : (
+                            <p className="bryl-mono text-xs text-red-600">
+                              ✕ {p.error}
+                            </p>
+                          );
+                        })()}
+                    </>
+                  )}
+
                   <button
                     type="submit"
                     className="bryl-btn self-start"
-                    disabled={creatingDoc || !newDocJson.trim()}
+                    disabled={creatingDoc}
                   >
                     {creatingDoc ? "writing on-chain…" : "write document"}
                   </button>
@@ -1556,39 +1690,40 @@ export default function DashboardPage() {
                     {settings.hostEnvManaged ? (
                       <>
                         read-only host with a {settings.host} api token —
-                        wallet key, rpc url, contract address and custom
-                        encryption key save straight to your {settings.host}{" "}
-                        environment from here (cold starts pick them up after
-                        the automatic redeploy). password, allowed domains,
-                        data visibility and the api key save on-chain.
+                        wallet key, rpc url and contract address save straight
+                        to your {settings.host} environment from here (cold
+                        starts pick them up after the automatic redeploy).
+                        password, allowed domains, data visibility, api key and
+                        the encryption key save on-chain.
                       </>
                     ) : settings.host === "vercel" ? (
                       <>
-                        read-only host — to edit the wallet key, rpc url,
-                        contract address or a custom encryption key from this
-                        dashboard, add a <b>VERCEL_TOKEN</b> environment
-                        variable (vercel.com → account settings → tokens;
-                        plus <b>VERCEL_TEAM_ID</b> for team projects and{" "}
-                        <b>VERCEL_DEPLOY_HOOK_URL</b> for auto-redeploys),
-                        then redeploy once. password, allowed domains, data
-                        visibility and the api key already save on-chain.
+                        read-only host — password, allowed domains, data
+                        visibility, api key and the encryption key already save
+                        on-chain from here. only the wallet key, rpc url and
+                        contract address need env vars — add a{" "}
+                        <b>VERCEL_TOKEN</b> (vercel.com → account settings →
+                        tokens; plus <b>VERCEL_TEAM_ID</b> for team projects and{" "}
+                        <b>VERCEL_DEPLOY_HOOK_URL</b> for auto-redeploys) to edit
+                        those here too, then redeploy once.
                       </>
                     ) : settings.host === "netlify" ? (
                       <>
-                        read-only host — to edit the wallet key, rpc url,
-                        contract address or a custom encryption key from this
-                        dashboard, add a <b>NETLIFY_AUTH_TOKEN</b> environment
-                        variable (netlify → user settings → applications →
-                        personal access tokens), then redeploy once. password,
-                        allowed domains, data visibility and the api key
-                        already save on-chain.
+                        read-only host — password, allowed domains, data
+                        visibility, api key and the encryption key already save
+                        on-chain from here. only the wallet key, rpc url and
+                        contract address need env vars — add a{" "}
+                        <b>NETLIFY_AUTH_TOKEN</b> (netlify → user settings →
+                        applications → personal access tokens) to edit those
+                        here too, then redeploy once.
                       </>
                     ) : (
                       <>
-                        read-only host — wallet key, rpc url, contract address
-                        and a custom encryption key must be set as environment
-                        variables on your host. password, allowed domains,
-                        data visibility and the api key save on-chain.
+                        read-only host — password, allowed domains, data
+                        visibility, api key and the encryption key save
+                        on-chain from here. the wallet key, rpc url and contract
+                        address must be set as environment variables on your
+                        host.
                       </>
                     )}
                   </p>

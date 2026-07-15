@@ -67,7 +67,7 @@ export default function DevelopersPage() {
     ? `https://vercel.com/new/clone?repository-url=${encodeURIComponent(
         repo
       )}&env=PRIVATE_KEY&envDescription=${encodeURIComponent(
-        "Wallet private key that signs writes — use a dedicated key. Everything else (network, contract, API key, password) is configured from the dashboard after deploying. Default network: Polygon Amoy — grab free test POL from the Amoy faucet first (link →)."
+        "⚠ BETA — StarBoarDB is early software. Use a dedicated throwaway wallet key, never store confidential or sensitive data, and use entirely at your own risk. In return: a lifetime-free database. | Enter the wallet private key that signs writes. Everything else (network, contract, API key, password) is configured from the dashboard after deploying. Default network: Polygon Amoy — grab free test POL from the Amoy faucet first (link →)."
       )}&envLink=${encodeURIComponent(
         "https://faucet.polygon.technology/"
       )}&project-name=starboardb&repository-name=starboardb`

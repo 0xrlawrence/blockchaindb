@@ -107,6 +107,35 @@ function chainReady(): boolean {
   return Boolean(c.rpcUrl && c.privateKey && c.contractAddress);
 }
 
+/**
+ * A stable-per-deployment identifier, so the on-chain dashboard password
+ * belongs to ONE deployment instead of every deployment that shares the
+ * wallet/contract. Vercel/Netlify expose a project-stable value that differs
+ * between forks but survives redeploys of the same project. Empty when the
+ * host isn't identifiable — in which case the on-chain password is treated as
+ * not-ours (a fresh deployment then asks for its own password rather than
+ * inheriting one). The password blob stores this under `__pwBinding`.
+ */
+const PW_BINDING_KEY = "__pwBinding";
+export function deploymentId(): string {
+  return (
+    process.env.VERCEL_PROJECT_PRODUCTION_URL || // vercel: stable per project
+    process.env.VERCEL_PROJECT_ID ||
+    process.env.SITE_ID || // netlify
+    process.env.SITE_NAME ||
+    ""
+  ).trim();
+}
+
+/** Does an on-chain password blob (with its stored binding) belong to THIS
+ *  deployment? False for a fresh fork (different id) or a legacy/unbound blob
+ *  (undefined), and false when the host can't be identified — so those cases
+ *  onboard for a new password instead of inheriting one. Exported for tests. */
+export function passwordBindingMatches(storedBinding: string | undefined): boolean {
+  const id = deploymentId();
+  return id.length > 0 && storedBinding === id;
+}
+
 interface RawDoc {
   id: bigint;
   data: string;
@@ -161,6 +190,12 @@ export async function writeChainSettings(
     else values[k] = v;
   }
 
+  // Bind the password to THIS deployment so a fresh fork doesn't inherit it.
+  if ("DASHBOARD_PASSWORD" in partial) {
+    if (partial.DASHBOARD_PASSWORD) values[PW_BINDING_KEY] = deploymentId();
+    else delete values[PW_BINDING_KEY];
+  }
+
   const blob = encrypt(JSON.stringify(values), key);
   const contract = getWriteContract();
   const tx =
@@ -204,8 +239,12 @@ export function hydrateSettings(): Promise<void> {
       const doc = await readDoc();
       if (!doc) return;
       const boot = bootEnv();
+      // The stored password only applies to the deployment that set it. A
+      // fresh fork (or a legacy/unbound blob) sees no password and onboards.
+      const pwIsOurs = passwordBindingMatches(doc.values[PW_BINDING_KEY]);
       for (const k of CHAIN_SETTING_KEYS) {
         if (boot[k]) continue; // host env var wins
+        if (k === "DASHBOARD_PASSWORD" && !pwIsOurs) continue;
         const v = doc.values[k];
         if (typeof v === "string") process.env[k] = v;
       }

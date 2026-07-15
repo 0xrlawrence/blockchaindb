@@ -69,9 +69,11 @@ export default function DashboardPage() {
   const [settings, setSettings] = useState<SettingsState | null>(null);
   const [collections, setCollections] = useState<CollectionInfo[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(
-    null
-  );
+  const [msg, setMsg] = useState<{
+    kind: "ok" | "error";
+    text: string;
+    txHash?: string | null;
+  } | null>(null);
 
   // workspace
   const [tab, setTab] = useState<Tab>("documents");
@@ -107,11 +109,9 @@ export default function DashboardPage() {
   const [unlockPw, setUnlockPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [newPw2, setNewPw2] = useState("");
-  const [savingVisibility, setSavingVisibility] = useState(false);
-  const [encKeyInput, setEncKeyInput] = useState("");
-  const [savingEncKey, setSavingEncKey] = useState(false);
   const [setupOpen, setSetupOpen] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
+  const [refreshingBal, setRefreshingBal] = useState(false);
 
   const copy = async (text: string) => {
     try {
@@ -120,6 +120,16 @@ export default function DashboardPage() {
       setTimeout(() => setCopied((c) => (c === text ? null : c)), 1500);
     } catch {
       // clipboard blocked — the address is still visible to select manually
+    }
+  };
+
+  // Re-check the wallet balance after the user tops up (no full reload).
+  const refreshBalance = async () => {
+    setRefreshingBal(true);
+    try {
+      await loadStatus();
+    } finally {
+      setRefreshingBal(false);
     }
   };
   const [savingSettings, setSavingSettings] = useState(false);
@@ -262,7 +272,11 @@ export default function DashboardPage() {
       setNewPw("");
       setNewPw2("");
       setAuth({ passwordSet: true, authed: true });
-      setMsg({ kind: "ok", text: "dashboard password created — this browser stays unlocked" });
+      setMsg({
+        kind: "ok",
+        text: "dashboard password created — this browser stays unlocked",
+        txHash: body.txHash,
+      });
     } catch (err) {
       setAuthMsg(err instanceof Error ? err.message : "setup failed");
     } finally {
@@ -277,65 +291,6 @@ export default function DashboardPage() {
       body: JSON.stringify({ action: "logout" }),
     }).catch(() => {});
     setAuth((a) => (a ? { ...a, authed: false } : a));
-  };
-
-  const setVisibility = async (visibility: "public" | "private") => {
-    if (!settings || settings.dataVisibility === visibility) return;
-    setSavingVisibility(true);
-    setMsg(null);
-    try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dataVisibility: visibility }),
-      });
-      const body = await readJson(res);
-      if (!res.ok) throw new Error(body.error ?? "Save failed");
-      await Promise.all([loadSettings(), loadStatus()]);
-      setMsg({
-        kind: "ok",
-        text:
-          visibility === "private"
-            ? "private — new documents are encrypted before they go on-chain"
-            : "public — new documents go on-chain as readable plaintext",
-      });
-    } catch (err) {
-      setMsg({
-        kind: "error",
-        text: err instanceof Error ? err.message : "save failed",
-      });
-    } finally {
-      setSavingVisibility(false);
-    }
-  };
-
-  const saveEncKey = async (key: string) => {
-    setSavingEncKey(true);
-    setMsg(null);
-    try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ encryptionKey: key }),
-      });
-      const body = await readJson(res);
-      if (!res.ok) throw new Error(body.error ?? "Save failed");
-      setEncKeyInput("");
-      await Promise.all([loadSettings(), loadStatus()]);
-      setMsg({
-        kind: "ok",
-        text: key
-          ? "custom encryption key saved — keep a copy somewhere safe"
-          : "custom key removed — back to the wallet-derived key",
-      });
-    } catch (err) {
-      setMsg({
-        kind: "error",
-        text: err instanceof Error ? err.message : "save failed",
-      });
-    } finally {
-      setSavingEncKey(false);
-    }
   };
 
   const createCollection = async (e: React.FormEvent) => {
@@ -355,7 +310,11 @@ export default function DashboardPage() {
       const cols = await loadCollections();
       loadStatus();
       if (!selectedCollection && cols[0]) setSelectedCollection(cols[0].name);
-      setMsg({ kind: "ok", text: "collection created on-chain" });
+      setMsg({
+        kind: "ok",
+        text: "collection created on-chain",
+        txHash: body.txHash,
+      });
     } catch (err) {
       setMsg({
         kind: "error",
@@ -413,7 +372,11 @@ export default function DashboardPage() {
         loadCollections(),
         loadStatus(),
       ]);
-      setMsg({ kind: "ok", text: "document written on-chain" });
+      setMsg({
+        kind: "ok",
+        text: "document written on-chain",
+        txHash: body.txHash,
+      });
     } catch (err) {
       setMsg({
         kind: "error",
@@ -474,6 +437,7 @@ export default function DashboardPage() {
       setMsg({
         kind: "ok",
         text: typeof body.note === "string" && body.note ? body.note : "saved",
+        txHash: body.txHash,
       });
     } catch (err) {
       setMsg({
@@ -517,6 +481,7 @@ export default function DashboardPage() {
       setMsg({
         kind: "ok",
         text: `deployed ${shorten(body.address)} on ${String(body.network ?? "chain").toLowerCase()}`,
+        txHash: body.txHash,
       });
     } catch (err) {
       setMsg({
@@ -529,6 +494,36 @@ export default function DashboardPage() {
   };
 
   const net = status?.network;
+  const txnUrl = (hash?: string | null) =>
+    hash && net?.explorerUrl ? `${net.explorerUrl}/tx/${hash}` : null;
+
+  // Success/error line with an optional "view txn ↗" link to the explorer.
+  const renderMsg = (className = "") => {
+    if (!msg) return null;
+    const url = txnUrl(msg.txHash);
+    return (
+      <p
+        className={`bryl-mono text-xs ${className} ${
+          msg.kind === "ok" ? "text-[var(--gray-500)]" : "text-red-600"
+        }`}
+      >
+        {msg.kind === "ok" ? "✓" : "✕"} {msg.text}
+        {url && (
+          <>
+            {" · "}
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="bryl-link"
+            >
+              view txn ↗
+            </a>
+          </>
+        )}
+      </p>
+    );
+  };
   const strip: {
     label: string;
     value: string;
@@ -656,10 +651,21 @@ export default function DashboardPage() {
             {(net?.name ?? "polygon amoy").toLowerCase()} · testnet
           </span>
           {status?.contract?.address && (
-            <span className="bryl-pill">
-              {status.contract.address.slice(0, 6)}…
-              {status.contract.address.slice(-4)}
-            </span>
+            <button
+              type="button"
+              className="bryl-pill cursor-pointer"
+              onClick={() => copy(status.contract!.address)}
+              title="copy contract address"
+            >
+              {copied === status.contract.address ? (
+                <span className="bryl-copied">copied ✓</span>
+              ) : (
+                <>
+                  {status.contract.address.slice(0, 6)}…
+                  {status.contract.address.slice(-4)}
+                </>
+              )}
+            </button>
           )}
           <span className={`bryl-pill ${connected ? "bryl-pill-inverted" : ""}`}>
             <span
@@ -761,10 +767,10 @@ export default function DashboardPage() {
                         >
                           faucet ↗
                         </a>
-                        {", then reload."}
+                        {", then refresh below."}
                       </>
                     ) : (
-                      " send funds to the address below, then reload."
+                      " send funds to the address below, then refresh."
                     )}
                   </p>
                   {status?.wallet?.address && (
@@ -782,6 +788,29 @@ export default function DashboardPage() {
                       </button>
                     </div>
                   )}
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="bryl-btn bryl-btn--ghost"
+                      onClick={refreshBalance}
+                      disabled={refreshingBal}
+                    >
+                      {refreshingBal ? (
+                        <>
+                          <span className="bryl-spin mr-1.5" />
+                          checking…
+                        </>
+                      ) : (
+                        "↻ i've topped up — check balance"
+                      )}
+                    </button>
+                    <span className="bryl-label normal-case">
+                      balance:{" "}
+                      {status?.wallet
+                        ? `${Number(status.wallet.balance).toFixed(4)} ${net?.currency ?? ""}`
+                        : "—"}
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -805,11 +834,16 @@ export default function DashboardPage() {
                           disabled={deploying || walletNeedsGas}
                           onClick={deploy}
                         >
-                          {deploying
-                            ? "deploying…"
-                            : confirmDeploy
-                              ? `confirm — deploy on ${net?.name?.toLowerCase() ?? "this chain"}`
-                              : "deploy database"}
+                          {deploying ? (
+                            <>
+                              <span className="bryl-spin mr-1.5" />
+                              deploying…
+                            </>
+                          ) : confirmDeploy ? (
+                            `confirm — deploy on ${net?.name?.toLowerCase() ?? "this chain"}`
+                          ) : (
+                            "deploy database"
+                          )}
                         </button>
                         {confirmDeploy && !deploying && (
                           <button
@@ -839,17 +873,7 @@ export default function DashboardPage() {
                       environment variable and redeploy.
                     </p>
                   )}
-                  {msg && (
-                    <p
-                      className={`bryl-mono mt-3 text-xs ${
-                        msg.kind === "ok"
-                          ? "text-[var(--gray-500)]"
-                          : "text-red-600"
-                      }`}
-                    >
-                      {msg.kind === "ok" ? "✓" : "✕"} {msg.text}
-                    </p>
-                  )}
+                  {renderMsg("mt-3")}
                 </div>
               )}
 
@@ -889,7 +913,14 @@ export default function DashboardPage() {
                       className="bryl-btn self-start"
                       disabled={authBusy || newPw.length < 8}
                     >
-                      {authBusy ? "saving…" : "create password"}
+                      {authBusy ? (
+                        <>
+                          <span className="bryl-spin mr-1.5" />
+                          saving…
+                        </>
+                      ) : (
+                        "create password"
+                      )}
                     </button>
                   </form>
                   {authMsg && (
@@ -972,15 +1003,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {msg && (
-            <p
-              className={`bryl-mono mb-3 text-xs ${
-                msg.kind === "ok" ? "text-[var(--gray-500)]" : "text-red-600"
-              }`}
-            >
-              {msg.kind === "ok" ? "✓" : "✕"} {msg.text}
-            </p>
-          )}
+          {renderMsg("mb-3")}
 
           {/* ---- collections ---- */}
           {tab === "collections" && (
@@ -997,7 +1020,14 @@ export default function DashboardPage() {
                   className="bryl-btn"
                   disabled={creatingCol || !newColName.trim()}
                 >
-                  {creatingCol ? "creating…" : "create"}
+                  {creatingCol ? (
+                    <>
+                      <span className="bryl-spin mr-1.5" />
+                      creating…
+                    </>
+                  ) : (
+                    "create"
+                  )}
                 </button>
               </form>
               {!loaded ? (
@@ -1196,7 +1226,14 @@ export default function DashboardPage() {
                     className="bryl-btn self-start"
                     disabled={creatingDoc}
                   >
-                    {creatingDoc ? "writing on-chain…" : "write document"}
+                    {creatingDoc ? (
+                      <>
+                        <span className="bryl-spin mr-1.5" />
+                        writing on-chain…
+                      </>
+                    ) : (
+                      "write document"
+                    )}
                   </button>
                 </form>
               )}
@@ -1415,49 +1452,6 @@ export default function DashboardPage() {
           {tab === "settings" && (
             <div key="settings" className="bryl-panel bryl-card bg-white p-3 sm:p-4">
               <form onSubmit={saveSettings} className="flex flex-col gap-4">
-                {settings && !settings.hostWritable && (
-                  <p className="bryl-label rounded-lg border border-dashed border-[var(--gray-300)] p-3 normal-case">
-                    {settings.hostEnvManaged ? (
-                      <>
-                        read-only host with a {settings.host} api token —
-                        wallet key, rpc url and contract address save straight
-                        to your {settings.host} environment from here (cold
-                        starts pick them up after the automatic redeploy).
-                        password, allowed domains, data visibility, api key and
-                        the encryption key save on-chain.
-                      </>
-                    ) : settings.host === "vercel" ? (
-                      <>
-                        read-only host — password, allowed domains, data
-                        visibility, api key and the encryption key already save
-                        on-chain from here. only the wallet key, rpc url and
-                        contract address need env vars — add a{" "}
-                        <b>VERCEL_TOKEN</b> (vercel.com → account settings →
-                        tokens; plus <b>VERCEL_TEAM_ID</b> for team projects and{" "}
-                        <b>VERCEL_DEPLOY_HOOK_URL</b> for auto-redeploys) to edit
-                        those here too, then redeploy once.
-                      </>
-                    ) : settings.host === "netlify" ? (
-                      <>
-                        read-only host — password, allowed domains, data
-                        visibility, api key and the encryption key already save
-                        on-chain from here. only the wallet key, rpc url and
-                        contract address need env vars — add a{" "}
-                        <b>NETLIFY_AUTH_TOKEN</b> (netlify → user settings →
-                        applications → personal access tokens) to edit those
-                        here too, then redeploy once.
-                      </>
-                    ) : (
-                      <>
-                        read-only host — password, allowed domains, data
-                        visibility, api key and the encryption key save
-                        on-chain from here. the wallet key, rpc url and contract
-                        address must be set as environment variables on your
-                        host.
-                      </>
-                    )}
-                  </p>
-                )}
                 <div>
                   <label className="bryl-label mb-1.5 block">
                     wallet private key
@@ -1506,58 +1500,6 @@ export default function DashboardPage() {
                     listed origin must send the api key.
                   </p>
                 </div>
-                <div>
-                  <label className="bryl-label mb-1.5 block">
-                    data visibility
-                  </label>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="bryl-tabs" role="group" aria-label="data visibility">
-                      <button
-                        type="button"
-                        className="bryl-tab"
-                        data-active={settings?.dataVisibility !== "public"}
-                        disabled={savingVisibility}
-                        onClick={() => setVisibility("private")}
-                      >
-                        private — encrypted
-                      </button>
-                      <button
-                        type="button"
-                        className="bryl-tab"
-                        data-active={settings?.dataVisibility === "public"}
-                        disabled={savingVisibility}
-                        onClick={() => setVisibility("public")}
-                      >
-                        public — plaintext
-                      </button>
-                    </div>
-                    {settings?.encryptionKeySet && (
-                      <span className="bryl-pill">custom key</span>
-                    )}
-                  </div>
-                  {settings?.dataVisibility !== "public" && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <input
-                        className="bryl-input bryl-mono min-w-0 flex-1"
-                        value={encKeyInput}
-                        onChange={(e) => setEncKeyInput(e.target.value)}
-                        placeholder={
-                          settings?.encryptionKeySet
-                            ? "custom key set — paste to replace"
-                            : "custom encryption key (optional — wallet-derived by default)"
-                        }
-                      />
-                      <button
-                        type="button"
-                        className="bryl-btn bryl-btn--ghost"
-                        disabled={savingEncKey || encKeyInput.trim().length < 16}
-                        onClick={() => saveEncKey(encKeyInput.trim())}
-                      >
-                        {savingEncKey ? "saving…" : "save key"}
-                      </button>
-                    </div>
-                  )}
-                </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="submit"
@@ -1572,11 +1514,16 @@ export default function DashboardPage() {
                     disabled={deploying || savingSettings || !settings}
                     onClick={deploy}
                   >
-                    {deploying
-                      ? "deploying…"
-                      : confirmDeploy
-                        ? `confirm deploy on ${net?.name?.toLowerCase() ?? "this chain"}`
-                        : "deploy database.sol"}
+                    {deploying ? (
+                      <>
+                        <span className="bryl-spin mr-1.5" />
+                        deploying…
+                      </>
+                    ) : confirmDeploy ? (
+                      `confirm deploy on ${net?.name?.toLowerCase() ?? "this chain"}`
+                    ) : (
+                      "deploy database.sol"
+                    )}
                   </button>
                   {confirmDeploy && !deploying && (
                     <button
@@ -1587,14 +1534,8 @@ export default function DashboardPage() {
                       cancel
                     </button>
                   )}
-                  <span className="bryl-pill">
-                    encryption {status?.encryption.enabled ? "on" : "off"}
-                  </span>
                 </div>
-                <p className="bryl-label">
-                  settings persist to .env.local and apply immediately — the key
-                  never leaves this machine
-                </p>
+                {renderMsg()}
               </form>
             </div>
           )}

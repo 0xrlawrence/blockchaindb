@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { note } = await persistEnv({
+    const { note, txHash } = await persistEnv({
       rpcUrl,
       privateKey,
       contractAddress,
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
       dataVisibility,
       encryptionKey,
     });
-    return NextResponse.json({ saved: true, path: ".env.local", note });
+    return NextResponse.json({ saved: true, path: ".env.local", note, txHash });
   } catch (error) {
     const message = error instanceof Error ? error.message : "save failed";
     return NextResponse.json({ error: message }, { status: 500 });

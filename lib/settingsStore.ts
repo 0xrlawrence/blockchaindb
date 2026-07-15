@@ -173,7 +173,7 @@ async function readDoc(): Promise<{ id: number; values: Record<string, string> }
  *  chain connection isn't bootstrapped. */
 export async function writeChainSettings(
   partial: Partial<Record<ChainSettingKey, string>>
-): Promise<void> {
+): Promise<string | null> {
   if (!chainReady()) {
     throw new Error(
       "This host has a read-only filesystem, so settings are stored on-chain here — which needs RPC_URL, PRIVATE_KEY and CONTRACT_ADDRESS set as hosting environment variables first (plus a little gas in the wallet). Alternatively set this value directly as a hosting environment variable."
@@ -213,6 +213,7 @@ export async function writeChainSettings(
     if (v !== undefined) process.env[k] = v;
   }
   invalidateSettingsCache();
+  return receipt?.hash ?? null;
 }
 
 export function invalidateSettingsCache(): void {

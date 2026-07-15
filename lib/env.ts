@@ -31,7 +31,7 @@ export async function persistEnv(next: {
   dashboardPassword?: string;
   dataVisibility?: string;
   encryptionKey?: string;
-}): Promise<{ note: string | null }> {
+}): Promise<{ note: string | null; txHash: string | null }> {
   const current = getConfig();
   const rpcUrl = next.rpcUrl !== undefined ? next.rpcUrl.trim() : current.rpcUrl;
   const privateKey =
@@ -60,6 +60,7 @@ export async function persistEnv(next: {
       : current.encryptionKey;
 
   let note: string | null = null;
+  let txHash: string | null = null;
 
   try {
     writeEnvFile(ENV_PATH, {
@@ -116,7 +117,7 @@ export async function persistEnv(next: {
 
     if (Object.keys(chainPartial).length > 0) {
       try {
-        await writeChainSettings(chainPartial);
+        txHash = await writeChainSettings(chainPartial);
       } catch (chainError) {
         if (!canManageHostEnv()) throw chainError;
         const result = await upsertHostEnv(
@@ -136,5 +137,5 @@ export async function persistEnv(next: {
   process.env.DATA_VISIBILITY = dataVisibility;
   process.env.ENCRYPTION_KEY = encryptionKey;
 
-  return { note };
+  return { note, txHash };
 }

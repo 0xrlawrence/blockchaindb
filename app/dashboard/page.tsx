@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { NETWORKS, findByRpcUrl } from "@/lib/networks";
+import { useCallback, useEffect, useState } from "react";
 import { looseParse, coerceScalar } from "@/lib/looseJson";
 import type {
   CollectionInfo,
@@ -10,7 +9,6 @@ import type {
 } from "@/lib/types";
 
 type Tab = "collections" | "documents" | "network" | "settings";
-type Side = "testnet" | "mainnet";
 type DocMode = "fields" | "raw";
 interface Field {
   key: string;
@@ -77,9 +75,6 @@ export default function DashboardPage() {
 
   // workspace
   const [tab, setTab] = useState<Tab>("documents");
-  const [side, setSide] = useState<Side>("testnet");
-  const [sideTouched, setSideTouched] = useState(false);
-  const [switching, setSwitching] = useState(false);
 
   // documents
   const [selectedCollection, setSelectedCollection] = useState("");
@@ -115,7 +110,18 @@ export default function DashboardPage() {
   const [savingVisibility, setSavingVisibility] = useState(false);
   const [encKeyInput, setEncKeyInput] = useState("");
   const [savingEncKey, setSavingEncKey] = useState(false);
-  const [showKeyHelp, setShowKeyHelp] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(true);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const copy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(text);
+      setTimeout(() => setCopied((c) => (c === text ? null : c)), 1500);
+    } catch {
+      // clipboard blocked — the address is still visible to select manually
+    }
+  };
   const [savingSettings, setSavingSettings] = useState(false);
   const [deploying, setDeploying] = useState(false);
   const [confirmDeploy, setConfirmDeploy] = useState(false);
@@ -182,14 +188,14 @@ export default function DashboardPage() {
       loadSettings(),
       loadCollections(),
     ]);
-    if (!sideTouched && s?.network?.testnet === false) setSide("mainnet");
+    void s;
     const first = cols.find((c) => c.documentCount > 0) ?? cols[0];
     if (first) {
       setSelectedCollection(first.name);
       await loadDocuments(first.name);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadStatus, loadSettings, loadCollections, loadDocuments, sideTouched]);
+  }, [loadStatus, loadSettings, loadCollections, loadDocuments]);
 
   useEffect(() => {
     (async () => {
@@ -210,13 +216,6 @@ export default function DashboardPage() {
   }, []);
 
   const connected = status?.connected ?? false;
-  const currentPreset = useMemo(
-    () => (settings ? findByRpcUrl(settings.rpcUrl) : undefined),
-    [settings]
-  );
-  const sideNetworks = NETWORKS.filter((n) =>
-    side === "testnet" ? n.testnet : !n.testnet
-  );
 
   /* ---- site access + onboarding actions ---- */
 
@@ -336,38 +335,6 @@ export default function DashboardPage() {
       });
     } finally {
       setSavingEncKey(false);
-    }
-  };
-
-  /** Header dropdown: switch the whole database to another chain. */
-  const switchNetwork = async (rpcUrl: string) => {
-    if (!rpcUrl || !settings) return;
-    setSwitching(true);
-    setMsg(null);
-    try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rpcUrl }),
-      });
-      const body = await readJson(res);
-      if (!res.ok) throw new Error(body.error ?? "Switch failed");
-      const [, next] = await Promise.all([loadSettings(), loadStatus()]);
-      const cols = await loadCollections();
-      const first = cols.find((c) => c.documentCount > 0) ?? cols[0];
-      setSelectedCollection(first?.name ?? "");
-      await loadDocuments(first?.name ?? "");
-      setMsg({
-        kind: "ok",
-        text: `switched to ${next?.network?.name?.toLowerCase() ?? findByRpcUrl(rpcUrl)?.name.toLowerCase() ?? "network"}`,
-      });
-    } catch (err) {
-      setMsg({
-        kind: "error",
-        text: err instanceof Error ? err.message : "switch failed",
-      });
-    } finally {
-      setSwitching(false);
     }
   };
 
@@ -609,26 +576,15 @@ export default function DashboardPage() {
       status?.configured.wallet &&
       status?.configured.contract
   );
-  const encryptionOn = status?.encryption.enabled ?? false;
-  const visibility = settings?.dataVisibility ?? "private";
-  const visibilityDone = settings
-    ? visibility === "public" || encryptionOn
-    : false;
+  // Setup is a two-step wizard: (1) deploy your database, (2) set a password.
   const onboardingNeeded =
     loaded && auth && status && settings
-      ? !(passwordDone && connectionDone && visibilityDone)
+      ? !(passwordDone && connectionDone)
       : false;
+  const setupStep = !connectionDone ? 1 : 2; // deploy → password
 
   const contractReady = status?.configured.contract ?? false;
   const walletReady = status?.configured.wallet ?? false;
-  // Where can dashboard-managed settings (including the password) actually be
-  // saved? A writable host, a provider token, or a deployed contract (on-chain
-  // store). On a read-only host with none of those, the password has nowhere
-  // to persist until the database is deployed — so gate it rather than error.
-  const canPersistSettings = settings
-    ? settings.hostWritable || settings.hostEnvManaged || contractReady
-    : true;
-  const passwordBlocked = !passwordDone && !canPersistSettings;
   const walletNeedsGas = Boolean(
     walletReady &&
       status?.wallet &&
@@ -687,57 +643,18 @@ export default function DashboardPage() {
           className="bryl-fade-up flex flex-wrap items-center gap-2"
           style={fade(0)}
         >
-          <span className="bryl-mono mr-auto flex items-center gap-2 text-sm font-medium lowercase">
+          <span className="bryl-mono mr-auto flex items-center gap-2.5 text-lg font-semibold lowercase sm:text-xl">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/starboar.webp"
               alt=""
-              className="h-5 w-5 rounded object-contain"
+              className="h-9 w-9 rounded-lg object-contain sm:h-10 sm:w-10"
             />
             starboardb
           </span>
-          <div className="order-last flex w-full items-center gap-2 sm:order-none sm:w-auto">
-            <div className="bryl-tabs" role="group" aria-label="chain type">
-              {(["testnet", "mainnet"] as Side[]).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className="bryl-tab"
-                  data-active={side === s}
-                  onClick={() => {
-                    setSide(s);
-                    setSideTouched(true);
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            <select
-              className="bryl-select min-w-0 flex-1 sm:flex-none"
-              value={
-                currentPreset && currentPreset.testnet === (side === "testnet")
-                  ? currentPreset.rpcUrl
-                  : ""
-              }
-              disabled={switching || !settings}
-              onChange={(e) => switchNetwork(e.target.value)}
-              aria-label="switch network"
-            >
-              <option value="" disabled>
-                {switching
-                  ? "switching…"
-                  : currentPreset
-                    ? `switch ${side}…`
-                    : "custom rpc — switch…"}
-              </option>
-              {sideNetworks.map((n) => (
-                <option key={n.id} value={n.rpcUrl}>
-                  {n.name.toLowerCase()} · {n.chainId}
-                </option>
-              ))}
-            </select>
-          </div>
+          <span className="bryl-pill">
+            {(net?.name ?? "polygon amoy").toLowerCase()} · testnet
+          </span>
           {status?.contract?.address && (
             <span className="bryl-pill">
               {status.contract.address.slice(0, 6)}…
@@ -752,13 +669,7 @@ export default function DashboardPage() {
                   : "border border-[var(--gray-400)]"
               }`}
             />
-            {status === null
-              ? "connecting"
-              : switching
-                ? "switching"
-                : connected
-                  ? "live"
-                  : "offline"}
+            {status === null ? "connecting" : connected ? "live" : "offline"}
           </span>
           {auth?.passwordSet && (
             <button
@@ -782,401 +693,221 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* 00 — setup: smart-detected onboarding; hides once everything passes */}
-        {onboardingNeeded && (
-          <section className="mt-6 sm:mt-8">
-            <h2
-              className="bryl-section-header bryl-fade-up mb-2 sm:mb-3"
-              style={fade(2)}
-            >
-              00 — setup
-            </h2>
+        {/* 00 — setup: floating step-by-step wizard (deploy → password) */}
+        {onboardingNeeded && setupOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <div
-              className="bryl-card bryl-fade-up divide-y divide-[var(--gray-200)] bg-white"
-              style={fade(2)}
-            >
-              {/* a — site password */}
-              <div className="p-3 sm:p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={`bryl-pill ${passwordDone ? "bryl-pill-inverted" : ""}`}
-                  >
-                    {passwordDone ? "✓ done" : "action needed"}
-                  </span>
-                  <span className="text-sm font-medium lowercase">
-                    site password
-                  </span>
+              aria-hidden
+              className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"
+              onClick={() => setSetupOpen(false)}
+            />
+            <div className="bryl-card bryl-fade-up relative z-10 max-h-[90vh] w-full max-w-md overflow-y-auto bg-white p-5 sm:p-6">
+              {/* header */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/starboar.webp"
+                    alt=""
+                    className="h-8 w-8 rounded-lg object-contain"
+                  />
+                  <div>
+                    <p className="bryl-mono text-sm font-medium lowercase">
+                      setup
+                    </p>
+                    <p className="bryl-label mt-0.5">step {setupStep} of 2</p>
+                  </div>
                 </div>
-                {passwordDone ? (
-                  <p className="bryl-label mt-2 normal-case">
-                    this dashboard is password-protected — use the lock pill in
-                    the header to sign out
-                  </p>
-                ) : passwordBlocked ? (
-                  <>
-                    <p className="bryl-label mt-2 normal-case">
-                      no password detected — anyone who can reach this url can
-                      read and write your database. this host is read-only, so
-                      your password (and settings) save on-chain — deploy your
-                      database once and the password field unlocks right here.
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        className={`bryl-btn ${confirmDeploy ? "" : "bryl-btn--ghost"}`}
-                        disabled={deploying || !walletReady || walletNeedsGas}
-                        onClick={deploy}
-                      >
-                        {deploying
-                          ? "deploying…"
-                          : confirmDeploy
-                            ? `confirm — deploy on ${net?.name?.toLowerCase() ?? "this chain"}`
-                            : "deploy database"}
-                      </button>
-                      {confirmDeploy && !deploying && (
-                        <button
-                          type="button"
-                          className="bryl-link bg-transparent text-xs"
-                          onClick={() => setConfirmDeploy(false)}
-                        >
-                          cancel
-                        </button>
-                      )}
-                    </div>
-                    {!walletReady && (
-                      <p className="bryl-label mt-2 normal-case">
-                        set your wallet private key first — the chain connection
-                        step below.
-                      </p>
-                    )}
-                    {walletNeedsGas && (
-                      <p className="bryl-label mt-2 normal-case">
-                        wallet {shorten(status?.wallet?.address)} has no gas to
-                        pay for the deploy
-                        {net?.testnet && net.faucetUrl ? (
-                          <>
-                            {" — get free test "}
-                            {net.currency}{" from the "}
-                            <a
-                              href={net.faucetUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="bryl-link"
-                            >
-                              faucet ↗
-                            </a>
-                            {", then reload"}
-                          </>
-                        ) : (
-                          " — fund it, then reload"
-                        )}
-                      </p>
-                    )}
-                    {msg && (
-                      <p
-                        className={`bryl-mono mt-2 text-xs ${
-                          msg.kind === "ok"
-                            ? "text-[var(--gray-500)]"
-                            : "text-red-600"
-                        }`}
-                      >
-                        {msg.kind === "ok" ? "✓" : "✕"} {msg.text}
-                      </p>
-                    )}
-                    <p className="bryl-label mt-2 normal-case">
-                      prefer environment variables? set{" "}
-                      <code className="bryl-mono">DASHBOARD_PASSWORD</code>{" "}
-                      directly, or add a{" "}
-                      <code className="bryl-mono">
-                        {settings?.host === "netlify"
-                          ? "NETLIFY_AUTH_TOKEN"
-                          : "VERCEL_TOKEN"}
-                      </code>{" "}
-                      to manage every field from this dashboard — then redeploy.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="bryl-label mt-2 normal-case">
-                      no password detected — anyone who can reach this url can
-                      read and write your database. create one now.
-                    </p>
-                    <form
-                      onSubmit={createPassword}
-                      className="mt-3 flex flex-wrap gap-2"
-                    >
-                      <input
-                        type="password"
-                        autoComplete="new-password"
-                        className="bryl-input min-w-0 flex-1"
-                        placeholder="password (min 8 chars)"
-                        value={newPw}
-                        onChange={(e) => setNewPw(e.target.value)}
-                      />
-                      <input
-                        type="password"
-                        autoComplete="new-password"
-                        className="bryl-input min-w-0 flex-1"
-                        placeholder="repeat password"
-                        value={newPw2}
-                        onChange={(e) => setNewPw2(e.target.value)}
-                      />
-                      <button
-                        type="submit"
-                        className="bryl-btn"
-                        disabled={authBusy || newPw.length < 8}
-                      >
-                        {authBusy ? "saving…" : "create password"}
-                      </button>
-                    </form>
-                    {authMsg && (
-                      <p className="bryl-mono mt-2 text-xs text-red-600">
-                        ✕ {authMsg}
-                      </p>
-                    )}
-                    {settings && !settings.hostWritable && (
-                      <p className="bryl-label mt-2 normal-case">
-                        this host is read-only — the password is stored on-chain
-                        (encrypted). alternatively set{" "}
-                        <code className="bryl-mono">DASHBOARD_PASSWORD</code> as
-                        a hosting environment variable.
-                      </p>
-                    )}
-                  </>
-                )}
+                <button
+                  type="button"
+                  className="bryl-mono text-sm text-[var(--gray-400)] hover:text-[var(--ink)]"
+                  onClick={() => setSetupOpen(false)}
+                  title="close (you can finish setup later)"
+                >
+                  ✕
+                </button>
               </div>
 
-              {/* b — connection */}
-              <div className="p-3 sm:p-4">
-                <div className="flex flex-wrap items-center gap-2">
+              {/* step progress */}
+              <div className="mt-4 flex gap-1.5">
+                {[1, 2].map((n) => (
                   <span
-                    className={`bryl-pill ${connectionDone ? "bryl-pill-inverted" : ""}`}
-                  >
-                    {connectionDone ? "✓ done" : "action needed"}
-                  </span>
-                  <span className="text-sm font-medium lowercase">
-                    chain connection
-                  </span>
-                </div>
-                {connectionDone ? (
-                  <p className="bryl-label mt-2 normal-case">
-                    rpc, wallet and contract are configured
-                  </p>
-                ) : walletReady && !contractReady ? (
-                  // wallet is set, only the contract is missing → deploy inline
-                  <>
-                    <p className="bryl-label mt-2 normal-case">
-                      wallet connected on{" "}
-                      {net?.name?.toLowerCase() ?? "the default network"} — now
-                      deploy your database (one-time, costs a little gas).
-                      switch chains anytime from the network dropdown up top.
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        className={`bryl-btn ${confirmDeploy ? "" : "bryl-btn--ghost"}`}
-                        disabled={deploying || walletNeedsGas}
-                        onClick={deploy}
-                      >
-                        {deploying
-                          ? "deploying…"
-                          : confirmDeploy
-                            ? `confirm — deploy on ${net?.name?.toLowerCase() ?? "this chain"}`
-                            : "deploy database"}
-                      </button>
-                      {confirmDeploy && !deploying && (
-                        <button
-                          type="button"
-                          className="bryl-link bg-transparent text-xs"
-                          onClick={() => setConfirmDeploy(false)}
-                        >
-                          cancel
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="bryl-link bg-transparent text-xs"
-                        onClick={() => setTab("settings")}
-                      >
-                        or paste an existing address
-                      </button>
-                    </div>
-                    {walletNeedsGas && (
-                      <p className="bryl-label mt-2 normal-case">
-                        wallet {shorten(status?.wallet?.address)} has no gas
-                        {net?.testnet && net.faucetUrl ? (
-                          <>
-                            {" — get free test "}
-                            {net.currency}
-                            {" from the "}
-                            <a
-                              href={net.faucetUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="bryl-link"
-                            >
-                              faucet ↗
-                            </a>
-                            {", then reload"}
-                          </>
-                        ) : (
-                          " — fund it, then reload"
-                        )}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <p className="bryl-label mt-2 normal-case">
-                      missing:{" "}
-                      {[
-                        !status?.configured.rpc && "rpc url",
-                        !status?.configured.wallet &&
-                          "wallet private key (set it as a hosting env var)",
-                        !status?.configured.contract && "contract (deploy it)",
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
-                    <button
-                      type="button"
-                      className="bryl-btn bryl-btn--ghost mt-3"
-                      onClick={() => setTab("settings")}
-                    >
-                      open settings
-                    </button>
-                  </>
-                )}
+                    key={n}
+                    className={`h-1 flex-1 rounded-full ${
+                      n <= setupStep ? "bg-[var(--ink)]" : "bg-[var(--gray-200)]"
+                    }`}
+                  />
+                ))}
               </div>
 
-              {/* c — data visibility */}
-              <div className="p-3 sm:p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={`bryl-pill ${visibilityDone ? "bryl-pill-inverted" : ""}`}
-                  >
-                    {visibilityDone ? "✓ done" : "choose"}
-                  </span>
-                  <span className="text-sm font-medium lowercase">
-                    data visibility
-                  </span>
-                </div>
-                <p className="bryl-label mt-2 normal-case">
-                  how should your documents live on the blockchain?
-                </p>
-                <div className="bryl-tabs mt-3" role="group" aria-label="data visibility">
-                  <button
-                    type="button"
-                    className="bryl-tab"
-                    data-active={visibility === "private"}
-                    disabled={savingVisibility}
-                    onClick={() => setVisibility("private")}
-                  >
-                    private — encrypted
-                  </button>
-                  <button
-                    type="button"
-                    className="bryl-tab"
-                    data-active={visibility === "public"}
-                    disabled={savingVisibility}
-                    onClick={() => setVisibility("public")}
-                  >
-                    public — plaintext
-                  </button>
-                </div>
-                {visibility === "public" ? (
-                  <p className="bryl-label mt-2 normal-case">
-                    anyone can read on-chain data — don't store secrets in
-                    public mode
+              {/* NO FUNDS — always on top when the wallet can't pay for deploy */}
+              {walletNeedsGas && !connectionDone && (
+                <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-50 p-3">
+                  <p className="bryl-mono text-xs font-medium uppercase tracking-wider text-amber-700">
+                    ⚠ no funds detected
                   </p>
-                ) : (
-                  <>
-                    {status && !status.configured.wallet && (
-                      <p className="bryl-label mt-2 normal-case">
-                        private mode encrypts with a key derived from your
-                        wallet private key — finish the chain connection step
-                        to enable it
-                      </p>
+                  <p className="bryl-label mt-1.5 normal-case text-amber-800">
+                    this wallet needs {net?.currency ?? "gas"} to deploy.
+                    {net?.testnet && net.faucetUrl ? (
+                      <>
+                        {" send test "}
+                        {net.currency}
+                        {" to the address below — get it free from the "}
+                        <a
+                          href={net.faucetUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="bryl-link"
+                        >
+                          faucet ↗
+                        </a>
+                        {", then reload."}
+                      </>
+                    ) : (
+                      " send funds to the address below, then reload."
                     )}
-                    <button
-                      type="button"
-                      className="bryl-link mt-2 block bg-transparent text-xs"
-                      onClick={() => setShowKeyHelp((v) => !v)}
-                    >
-                      {showKeyHelp
-                        ? "hide the key tutorial"
-                        : "how to create your own encryption key"}
-                    </button>
-                    {showKeyHelp && (
-                      <div className="mt-2 rounded-lg border border-dashed border-[var(--gray-300)] p-3">
-                        <p className="bryl-label normal-case">
-                          by default the encryption key is derived from your
-                          wallet private key. to bring your own key instead:
-                        </p>
-                        <ol className="bryl-label mt-2 list-decimal space-y-1 pl-4 normal-case">
-                          <li>
-                            in a terminal, generate 32 random bytes:{" "}
-                            <code className="bryl-mono">
-                              openssl rand -hex 32
-                            </code>
-                          </li>
-                          <li>
-                            or{" "}
-                            <button
-                              type="button"
-                              className="bryl-link bg-transparent"
-                              onClick={() => setEncKeyInput(generateKeyHex())}
-                            >
-                              generate one in this browser
-                            </button>
-                          </li>
-                          <li>
-                            paste it below and save — then keep a copy
-                            somewhere safe. without the key, encrypted
-                            documents can never be read again.
-                          </li>
-                        </ol>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <input
-                            className="bryl-input bryl-mono min-w-0 flex-1"
-                            value={encKeyInput}
-                            onChange={(e) => setEncKeyInput(e.target.value)}
-                            placeholder="paste or generate a key (min 16 chars)"
-                          />
+                  </p>
+                  {status?.wallet?.address && (
+                    <div className="mt-2 flex items-stretch gap-2">
+                      <code className="bryl-mono min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded border border-amber-500/30 bg-white px-2 py-1.5 text-xs text-[var(--ink)]">
+                        {status.wallet.address}
+                      </code>
+                      <button
+                        type="button"
+                        className="bryl-btn shrink-0"
+                        onClick={() => copy(status.wallet!.address)}
+                        title="copy wallet address"
+                      >
+                        {copied === status.wallet.address ? "copied ✓" : "copy"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* STEP 1 — deploy your database */}
+              {setupStep === 1 && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium lowercase">
+                    deploy your database
+                  </p>
+                  {walletReady ? (
+                    <>
+                      <p className="bryl-label mt-2 normal-case">
+                        wallet connected on{" "}
+                        {net?.name?.toLowerCase() ?? "the default network"} —
+                        deploy your database once (costs a little gas).
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          className={`bryl-btn ${confirmDeploy ? "" : "bryl-btn--ghost"}`}
+                          disabled={deploying || walletNeedsGas}
+                          onClick={deploy}
+                        >
+                          {deploying
+                            ? "deploying…"
+                            : confirmDeploy
+                              ? `confirm — deploy on ${net?.name?.toLowerCase() ?? "this chain"}`
+                              : "deploy database"}
+                        </button>
+                        {confirmDeploy && !deploying && (
                           <button
                             type="button"
-                            className="bryl-btn"
-                            disabled={
-                              savingEncKey || encKeyInput.trim().length < 16
-                            }
-                            onClick={() => saveEncKey(encKeyInput.trim())}
+                            className="bryl-link bg-transparent text-xs"
+                            onClick={() => setConfirmDeploy(false)}
                           >
-                            {savingEncKey ? "saving…" : "save key"}
+                            cancel
                           </button>
-                        </div>
-                        {settings?.encryptionKeySet && (
-                          <p className="bryl-label mt-2 normal-case">
-                            ✓ custom key active ·{" "}
-                            <button
-                              type="button"
-                              className="bryl-link bg-transparent"
-                              onClick={() => saveEncKey("")}
-                            >
-                              switch back to the wallet-derived key
-                            </button>
-                          </p>
                         )}
-                        <p className="bryl-label mt-2 normal-case">
-                          note: changing the key locks documents encrypted
-                          with the previous key until it's restored.
-                        </p>
+                        <button
+                          type="button"
+                          className="bryl-link bg-transparent text-xs"
+                          onClick={() => {
+                            setSetupOpen(false);
+                            setTab("settings");
+                          }}
+                        >
+                          or paste an existing contract
+                        </button>
                       </div>
-                    )}
-                  </>
-                )}
-              </div>
+                    </>
+                  ) : (
+                    <p className="bryl-label mt-2 normal-case">
+                      no wallet key detected — set{" "}
+                      <code className="bryl-mono">PRIVATE_KEY</code> as a hosting
+                      environment variable and redeploy.
+                    </p>
+                  )}
+                  {msg && (
+                    <p
+                      className={`bryl-mono mt-3 text-xs ${
+                        msg.kind === "ok"
+                          ? "text-[var(--gray-500)]"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {msg.kind === "ok" ? "✓" : "✕"} {msg.text}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* STEP 2 — set a site password */}
+              {setupStep === 2 && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium lowercase">
+                    set a site password
+                  </p>
+                  <p className="bryl-label mt-2 normal-case">
+                    no password detected — anyone who can reach this url can read
+                    and write your database. create one now.
+                  </p>
+                  <form
+                    onSubmit={createPassword}
+                    className="mt-3 flex flex-col gap-2"
+                  >
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      autoFocus
+                      className="bryl-input w-full"
+                      placeholder="password (min 8 chars)"
+                      value={newPw}
+                      onChange={(e) => setNewPw(e.target.value)}
+                    />
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      className="bryl-input w-full"
+                      placeholder="repeat password"
+                      value={newPw2}
+                      onChange={(e) => setNewPw2(e.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      className="bryl-btn self-start"
+                      disabled={authBusy || newPw.length < 8}
+                    >
+                      {authBusy ? "saving…" : "create password"}
+                    </button>
+                  </form>
+                  {authMsg && (
+                    <p className="bryl-mono mt-2 text-xs text-red-600">
+                      ✕ {authMsg}
+                    </p>
+                  )}
+                  {settings && !settings.hostWritable && (
+                    <p className="bryl-label mt-2 normal-case">
+                      stored on-chain (encrypted), scoped to this deployment. or
+                      set <code className="bryl-mono">DASHBOARD_PASSWORD</code> as
+                      a hosting environment variable.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
-          </section>
+          </div>
         )}
 
         {/* 01 — status strip: every cell jumps to its tab below */}
@@ -1675,8 +1406,7 @@ export default function DashboardPage() {
                 </tbody>
               </table>
               <p className="bryl-label mt-3">
-                switch chains from the dropdown in the header — the toggle picks
-                testnet or mainnet presets
+                network is fixed to polygon amoy testnet for this deployment
               </p>
             </div>
           )}

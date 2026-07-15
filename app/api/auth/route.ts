@@ -64,14 +64,15 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    let txHash: string | null = null;
     try {
-      await persistEnv({ dashboardPassword: password });
+      ({ txHash } = await persistEnv({ dashboardPassword: password }));
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Could not save the password.";
       return NextResponse.json({ error: message }, { status: 500 });
     }
-    return attachSession(NextResponse.json({ ok: true, created: true }));
+    return attachSession(NextResponse.json({ ok: true, created: true, txHash }));
   }
 
   if (action === "login") {

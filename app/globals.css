@@ -492,6 +492,33 @@ a.bryl-card:active {
   color: var(--bg);
 }
 
+/* Inline spinner for in-flight actions (deploying, refreshing…) */
+.bryl-spin {
+  display: inline-block;
+  width: 0.75em;
+  height: 0.75em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: bryl-spin 0.6s linear infinite;
+  vertical-align: -1px;
+}
+@keyframes bryl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bryl-spin {
+    animation-duration: 1.2s;
+  }
+}
+
+/* "copied ✓" flash */
+.bryl-copied {
+  animation: fade-in 150ms ease-out;
+}
+
 /* Tab panel swap: fast fade only — tabs are hit constantly */
 .bryl-panel {
   animation: fade-in 120ms ease-out backwards;

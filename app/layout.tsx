@@ -14,6 +14,11 @@ export const metadata: Metadata = {
   title: "StarBoarDB — the blockchain is your database",
   description:
     "A self-hosted blockchain database with a Supabase-like dashboard. Deploy one smart contract and manage collections of JSON documents on any EVM network.",
+  icons: {
+    icon: [{ url: "/starboar.webp", type: "image/webp" }],
+    shortcut: "/starboar.webp",
+    apple: "/starboar.webp",
+  },
 };
 
 export default function RootLayout({

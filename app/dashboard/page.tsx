@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { NETWORKS, findByRpcUrl } from "@/lib/networks";
+import { useCallback, useEffect, useState } from "react";
 import { looseParse, coerceScalar } from "@/lib/looseJson";
 import type {
   CollectionInfo,
@@ -10,7 +9,6 @@ import type {
 } from "@/lib/types";
 
 type Tab = "collections" | "documents" | "network" | "settings";
-type Side = "testnet" | "mainnet";
 type DocMode = "fields" | "raw";
 interface Field {
   key: string;
@@ -77,9 +75,6 @@ export default function DashboardPage() {
 
   // workspace
   const [tab, setTab] = useState<Tab>("documents");
-  const [side, setSide] = useState<Side>("testnet");
-  const [sideTouched, setSideTouched] = useState(false);
-  const [switching, setSwitching] = useState(false);
 
   // documents
   const [selectedCollection, setSelectedCollection] = useState("");
@@ -116,6 +111,17 @@ export default function DashboardPage() {
   const [encKeyInput, setEncKeyInput] = useState("");
   const [savingEncKey, setSavingEncKey] = useState(false);
   const [setupOpen, setSetupOpen] = useState(true);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const copy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(text);
+      setTimeout(() => setCopied((c) => (c === text ? null : c)), 1500);
+    } catch {
+      // clipboard blocked — the address is still visible to select manually
+    }
+  };
   const [savingSettings, setSavingSettings] = useState(false);
   const [deploying, setDeploying] = useState(false);
   const [confirmDeploy, setConfirmDeploy] = useState(false);
@@ -182,14 +188,14 @@ export default function DashboardPage() {
       loadSettings(),
       loadCollections(),
     ]);
-    if (!sideTouched && s?.network?.testnet === false) setSide("mainnet");
+    void s;
     const first = cols.find((c) => c.documentCount > 0) ?? cols[0];
     if (first) {
       setSelectedCollection(first.name);
       await loadDocuments(first.name);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadStatus, loadSettings, loadCollections, loadDocuments, sideTouched]);
+  }, [loadStatus, loadSettings, loadCollections, loadDocuments]);
 
   useEffect(() => {
     (async () => {
@@ -210,13 +216,6 @@ export default function DashboardPage() {
   }, []);
 
   const connected = status?.connected ?? false;
-  const currentPreset = useMemo(
-    () => (settings ? findByRpcUrl(settings.rpcUrl) : undefined),
-    [settings]
-  );
-  const sideNetworks = NETWORKS.filter((n) =>
-    side === "testnet" ? n.testnet : !n.testnet
-  );
 
   /* ---- site access + onboarding actions ---- */
 
@@ -336,38 +335,6 @@ export default function DashboardPage() {
       });
     } finally {
       setSavingEncKey(false);
-    }
-  };
-
-  /** Header dropdown: switch the whole database to another chain. */
-  const switchNetwork = async (rpcUrl: string) => {
-    if (!rpcUrl || !settings) return;
-    setSwitching(true);
-    setMsg(null);
-    try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rpcUrl }),
-      });
-      const body = await readJson(res);
-      if (!res.ok) throw new Error(body.error ?? "Switch failed");
-      const [, next] = await Promise.all([loadSettings(), loadStatus()]);
-      const cols = await loadCollections();
-      const first = cols.find((c) => c.documentCount > 0) ?? cols[0];
-      setSelectedCollection(first?.name ?? "");
-      await loadDocuments(first?.name ?? "");
-      setMsg({
-        kind: "ok",
-        text: `switched to ${next?.network?.name?.toLowerCase() ?? findByRpcUrl(rpcUrl)?.name.toLowerCase() ?? "network"}`,
-      });
-    } catch (err) {
-      setMsg({
-        kind: "error",
-        text: err instanceof Error ? err.message : "switch failed",
-      });
-    } finally {
-      setSwitching(false);
     }
   };
 
@@ -676,57 +643,18 @@ export default function DashboardPage() {
           className="bryl-fade-up flex flex-wrap items-center gap-2"
           style={fade(0)}
         >
-          <span className="bryl-mono mr-auto flex items-center gap-2 text-sm font-medium lowercase">
+          <span className="bryl-mono mr-auto flex items-center gap-2.5 text-lg font-semibold lowercase sm:text-xl">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/starboar.webp"
               alt=""
-              className="h-5 w-5 rounded object-contain"
+              className="h-9 w-9 rounded-lg object-contain sm:h-10 sm:w-10"
             />
             starboardb
           </span>
-          <div className="order-last flex w-full items-center gap-2 sm:order-none sm:w-auto">
-            <div className="bryl-tabs" role="group" aria-label="chain type">
-              {(["testnet", "mainnet"] as Side[]).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className="bryl-tab"
-                  data-active={side === s}
-                  onClick={() => {
-                    setSide(s);
-                    setSideTouched(true);
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            <select
-              className="bryl-select min-w-0 flex-1 sm:flex-none"
-              value={
-                currentPreset && currentPreset.testnet === (side === "testnet")
-                  ? currentPreset.rpcUrl
-                  : ""
-              }
-              disabled={switching || !settings}
-              onChange={(e) => switchNetwork(e.target.value)}
-              aria-label="switch network"
-            >
-              <option value="" disabled>
-                {switching
-                  ? "switching…"
-                  : currentPreset
-                    ? `switch ${side}…`
-                    : "custom rpc — switch…"}
-              </option>
-              {sideNetworks.map((n) => (
-                <option key={n.id} value={n.rpcUrl}>
-                  {n.name.toLowerCase()} · {n.chainId}
-                </option>
-              ))}
-            </select>
-          </div>
+          <span className="bryl-pill">
+            {(net?.name ?? "polygon amoy").toLowerCase()} · testnet
+          </span>
           {status?.contract?.address && (
             <span className="bryl-pill">
               {status.contract.address.slice(0, 6)}…
@@ -741,13 +669,7 @@ export default function DashboardPage() {
                   : "border border-[var(--gray-400)]"
               }`}
             />
-            {status === null
-              ? "connecting"
-              : switching
-                ? "switching"
-                : connected
-                  ? "live"
-                  : "offline"}
+            {status === null ? "connecting" : connected ? "live" : "offline"}
           </span>
           {auth?.passwordSet && (
             <button
@@ -825,13 +747,12 @@ export default function DashboardPage() {
                     ⚠ no funds detected
                   </p>
                   <p className="bryl-label mt-1.5 normal-case text-amber-800">
-                    wallet {shorten(status?.wallet?.address)} needs{" "}
-                    {net?.currency ?? "gas"} to deploy.
+                    this wallet needs {net?.currency ?? "gas"} to deploy.
                     {net?.testnet && net.faucetUrl ? (
                       <>
-                        {" get free test "}
+                        {" send test "}
                         {net.currency}
-                        {" from the "}
+                        {" to the address below — get it free from the "}
                         <a
                           href={net.faucetUrl}
                           target="_blank"
@@ -843,9 +764,24 @@ export default function DashboardPage() {
                         {", then reload."}
                       </>
                     ) : (
-                      " fund it, then reload."
+                      " send funds to the address below, then reload."
                     )}
                   </p>
+                  {status?.wallet?.address && (
+                    <div className="mt-2 flex items-stretch gap-2">
+                      <code className="bryl-mono min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded border border-amber-500/30 bg-white px-2 py-1.5 text-xs text-[var(--ink)]">
+                        {status.wallet.address}
+                      </code>
+                      <button
+                        type="button"
+                        className="bryl-btn shrink-0"
+                        onClick={() => copy(status.wallet!.address)}
+                        title="copy wallet address"
+                      >
+                        {copied === status.wallet.address ? "copied ✓" : "copy"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -860,8 +796,7 @@ export default function DashboardPage() {
                       <p className="bryl-label mt-2 normal-case">
                         wallet connected on{" "}
                         {net?.name?.toLowerCase() ?? "the default network"} —
-                        deploy your database once (costs a little gas). switch
-                        chains anytime from the network dropdown up top.
+                        deploy your database once (costs a little gas).
                       </p>
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <button
@@ -893,7 +828,7 @@ export default function DashboardPage() {
                             setTab("settings");
                           }}
                         >
-                          or paste an existing address
+                          or paste an existing contract
                         </button>
                       </div>
                     </>
@@ -1471,8 +1406,7 @@ export default function DashboardPage() {
                 </tbody>
               </table>
               <p className="bryl-label mt-3">
-                switch chains from the dropdown in the header — the toggle picks
-                testnet or mainnet presets
+                network is fixed to polygon amoy testnet for this deployment
               </p>
             </div>
           )}

@@ -519,6 +519,65 @@ a.bryl-card:active {
   animation: fade-in 150ms ease-out;
 }
 
+/* Toast: one inverted pill that slides up from the bottom for lightweight
+   confirmations (e.g. api key rotated). Auto-dismisses; click to dismiss. */
+.bryl-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.25rem;
+  z-index: 80;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 2rem);
+  border: 1px solid var(--ink);
+  border-radius: 9999px;
+  background: var(--ink);
+  color: var(--bg);
+  padding: 8px 16px 8px 10px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow:
+    0 6px 24px rgba(10, 10, 10, 0.18),
+    0 1px 2px rgba(10, 10, 10, 0.2);
+  animation: bryl-toast-in 260ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.bryl-toast[data-kind="error"] {
+  border-color: #dc2626;
+  background: #dc2626;
+}
+.bryl-toast .bryl-toast-mark {
+  display: inline-flex;
+  height: 1.05rem;
+  width: 1.05rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+.bryl-toast[data-kind="error"] .bryl-toast-mark {
+  color: #dc2626;
+}
+@keyframes bryl-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bryl-toast {
+    animation-duration: 1ms;
+  }
+}
+
 /* Tab panel swap: fast fade only — tabs are hit constantly */
 .bryl-panel {
   animation: fade-in 120ms ease-out backwards;

@@ -100,6 +100,8 @@ export default function DashboardPage() {
   // settings
   const [contractAddress, setContractAddress] = useState("");
   const [allowedOrigins, setAllowedOrigins] = useState("");
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [apiKeyBusy, setApiKeyBusy] = useState(false);
 
   // site access + onboarding
   const [auth, setAuth] = useState<AuthState | null>(null);
@@ -111,6 +113,12 @@ export default function DashboardPage() {
   const [setupOpen, setSetupOpen] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
   const [refreshingBal, setRefreshingBal] = useState(false);
+
+  // Origin the deployment is served from, for copy-paste API examples.
+  const apiOrigin =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : "https://your-deployment";
 
   const copy = async (text: string) => {
     try {
@@ -191,11 +199,23 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const loadApiKey = useCallback(async () => {
+    try {
+      const res = await fetch("/api/apikey");
+      if (!res.ok) return;
+      const body = await res.json();
+      setApiKey(body.apiKey ?? null);
+    } catch {
+      // non-fatal — the key section just shows "none yet"
+    }
+  }, []);
+
   const loadAll = useCallback(async () => {
     const [s, , cols] = await Promise.all([
       loadStatus(),
       loadSettings(),
       loadCollections(),
+      loadApiKey(),
     ]);
     void s;
     const first = cols.find((c) => c.documentCount > 0) ?? cols[0];
@@ -204,7 +224,7 @@ export default function DashboardPage() {
       await loadDocuments(first.name);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadStatus, loadSettings, loadCollections, loadDocuments]);
+  }, [loadStatus, loadSettings, loadCollections, loadApiKey, loadDocuments]);
 
   useEffect(() => {
     (async () => {
@@ -443,6 +463,53 @@ export default function DashboardPage() {
       });
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  // Generate or rotate the data-API key. Rotating invalidates the old key.
+  const rotateApiKey = async () => {
+    setApiKeyBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/apikey", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const body = await readJson(res);
+      if (!res.ok) throw new Error(body.error ?? "Could not generate key");
+      setApiKey(body.apiKey ?? null);
+      setMsg({ kind: "ok", text: "api key generated — copy it now" });
+    } catch (err) {
+      setMsg({
+        kind: "error",
+        text: err instanceof Error ? err.message : "key generation failed",
+      });
+    } finally {
+      setApiKeyBusy(false);
+    }
+  };
+
+  const clearApiKey = async () => {
+    setApiKeyBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/apikey", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "clear" }),
+      });
+      const body = await readJson(res);
+      if (!res.ok) throw new Error(body.error ?? "Could not remove key");
+      setApiKey(null);
+      setMsg({ kind: "ok", text: "api key removed" });
+    } catch (err) {
+      setMsg({
+        kind: "error",
+        text: err instanceof Error ? err.message : "could not remove key",
+      });
+    } finally {
+      setApiKeyBusy(false);
     }
   };
 
@@ -1495,6 +1562,99 @@ export default function DashboardPage() {
                 </div>
                 {renderMsg()}
               </form>
+
+              {/* ---- data API key ---- */}
+              <div className="mt-6 border-t border-[var(--gray-200)] pt-5">
+                <label className="bryl-label mb-1.5 block">
+                  data api key
+                </label>
+                <p className="bryl-label mb-3 normal-case">
+                  use this to read your collections from another site or
+                  server. send it as a header on every request. rotating makes
+                  the old key stop working.
+                </p>
+
+                {apiKey ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <code className="bryl-card break-all bg-[var(--gray-50)] px-2 py-1 text-xs">
+                      {apiKey}
+                    </code>
+                    <button
+                      type="button"
+                      className="bryl-btn--ghost text-xs"
+                      onClick={() => copy(apiKey)}
+                    >
+                      {copied === apiKey ? "copied ✓" : "copy"}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="bryl-label normal-case">
+                    no key yet — the api is open (any site can read). generate
+                    one to lock it down.
+                  </p>
+                )}
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="bryl-btn"
+                    disabled={apiKeyBusy}
+                    onClick={rotateApiKey}
+                  >
+                    {apiKeyBusy ? (
+                      <>
+                        <span className="bryl-spin mr-1.5" />
+                        working…
+                      </>
+                    ) : apiKey ? (
+                      "rotate key"
+                    ) : (
+                      "generate key"
+                    )}
+                  </button>
+                  {apiKey && (
+                    <button
+                      type="button"
+                      className="bryl-btn--ghost"
+                      disabled={apiKeyBusy}
+                      onClick={clearApiKey}
+                    >
+                      remove
+                    </button>
+                  )}
+                </div>
+
+                {/* copy-paste usage */}
+                <div className="mt-4">
+                  <p className="bryl-label mb-1.5 normal-case">
+                    example — read the{" "}
+                    <span className="font-mono">
+                      {selectedCollection || "users"}
+                    </span>{" "}
+                    collection from another site:
+                  </p>
+                  <pre className="bryl-card overflow-x-auto bg-[var(--gray-50)] p-3 text-xs leading-relaxed">
+{`curl "${apiOrigin}/api/list?collection=${selectedCollection || "users"}" \\
+  -H "x-api-key: ${apiKey ?? "YOUR_API_KEY"}"`}
+                  </pre>
+                  <pre className="bryl-card mt-2 overflow-x-auto bg-[var(--gray-50)] p-3 text-xs leading-relaxed">
+{`const res = await fetch(
+  "${apiOrigin}/api/list?collection=${selectedCollection || "users"}",
+  { headers: { "x-api-key": "${apiKey ?? "YOUR_API_KEY"}" } }
+);
+const { documents } = await res.json();`}
+                  </pre>
+                  <p className="bryl-label mt-2 normal-case">
+                    one document:{" "}
+                    <span className="font-mono">
+                      /api/get?collection={selectedCollection || "users"}&amp;id=1
+                    </span>
+                    . browser calls from an allowed domain don&apos;t need the
+                    header. keep the key server-side — never ship it in public
+                    front-end code.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </section>

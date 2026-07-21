@@ -23,6 +23,12 @@ RPC) right from the dashboard. No Solidity knowledge required.
 
 ## Deploy your own
 
+> ⚠️ **Use a dedicated, throwaway wallet.** `PRIVATE_KEY` signs every write
+> and its wallet pays every gas fee — StarBoarDB is early software running
+> on a public chain. Generate a fresh wallet just for this, fund it with
+> only what you need, and never paste the private key of a wallet holding
+> real funds or used anywhere else.
+
 Only `PRIVATE_KEY` is asked for at deploy time. Everything else is
 configured afterwards, from a floating setup wizard the dashboard shows on
 first load:

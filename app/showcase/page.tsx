@@ -76,6 +76,7 @@ export default function ShowcasePage() {
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [apiKey, setApiKey] = useState<string | null>(null);
+  const [refreshingKey, setRefreshingKey] = useState(false);
   const apiKeyRef = useRef<string | null>(null);
 
   const [collections, setCollections] = useState<CollectionInfo[]>([]);
@@ -115,6 +116,28 @@ export default function ShowcasePage() {
       // clipboard blocked — text is still visible to select manually
     }
   };
+
+  // Transient toast for lightweight confirmations (e.g. document deleted).
+  const [toast, setToast] = useState<{ kind: "ok" | "error"; text: string } | null>(
+    null
+  );
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = useCallback((text: string, kind: "ok" | "error" = "ok") => {
+    setToast({ text, kind });
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2600);
+  }, []);
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
+
+  // Confirm-to-delete: first click arms the row, second click (within 3s)
+  // actually deletes — no instant, no-warning deletes.
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const pendingDeleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
+  }, []);
 
   // Set after mount (not read inline from `window` during render), so the
   // server-prerendered markup and the first client render match — this is
@@ -186,15 +209,31 @@ export default function ShowcasePage() {
     [call]
   );
 
+  // The api key lives on the dashboard (Settings → data api key), not here —
+  // fetch whatever is currently configured there. Called on boot, whenever
+  // this tab regains focus (covers "generated/rotated it in a dashboard tab,
+  // switched back here"), and from the manual refresh button.
+  const loadApiKey = useCallback(async (showSpinner = false) => {
+    if (showSpinner) setRefreshingKey(true);
+    try {
+      const res = await fetch("/api/apikey");
+      const body = await res.json().catch(() => ({ apiKey: null }));
+      const key = res.ok ? body?.apiKey ?? null : null;
+      apiKeyRef.current = key;
+      setApiKey(key);
+    } catch {
+      // non-fatal — calls just proceed without the header
+    } finally {
+      if (showSpinner) setRefreshingKey(false);
+    }
+  }, []);
+
   const bootstrap = useCallback(async () => {
-    const [s, k] = await Promise.all([
+    const [s] = await Promise.all([
       fetch("/api/status").then((r) => r.json()).catch(() => null),
-      fetch("/api/apikey").then((r) => r.json()).catch(() => ({ apiKey: null })),
+      loadApiKey(),
     ]);
     setStatus(s);
-    const key = k?.apiKey ?? null;
-    apiKeyRef.current = key;
-    setApiKey(key);
     const r = await refreshCollections();
     if (r.ok) {
       const cols: CollectionInfo[] = r.body.collections ?? [];
@@ -203,7 +242,7 @@ export default function ShowcasePage() {
         await refreshDocuments(cols[0].name);
       }
     }
-  }, [refreshCollections, refreshDocuments]);
+  }, [loadApiKey, refreshCollections, refreshDocuments]);
 
   useEffect(() => {
     (async () => {
@@ -220,6 +259,15 @@ export default function ShowcasePage() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    const onVisible = () => {
+      if (!document.hidden) loadApiKey();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [loaded, loadApiKey]);
 
   const unlock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -319,7 +367,30 @@ export default function ShowcasePage() {
     setBusyDocId(doc.id);
     const r = await call("POST", "/api/delete", { collection: selectedCollection, id: doc.id });
     setBusyDocId(null);
-    if (r.ok) await Promise.all([refreshDocuments(selectedCollection), refreshCollections()]);
+    if (r.ok) {
+      showToast(`document #${doc.id} deleted`);
+      await Promise.all([refreshDocuments(selectedCollection), refreshCollections()]);
+    } else {
+      showToast(r.body?.error ?? "delete failed", "error");
+    }
+  };
+
+  // First click arms the row (button turns into "sure?"); a second click
+  // within 3s confirms. Anything else — a timeout, clicking another row —
+  // disarms it, so nothing ever deletes from a single accidental click.
+  const handleDeleteClick = (doc: DocumentRecord) => {
+    if (pendingDeleteId === doc.id) {
+      if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
+      setPendingDeleteId(null);
+      deleteDoc(doc);
+      return;
+    }
+    setPendingDeleteId(doc.id);
+    if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
+    pendingDeleteTimer.current = setTimeout(
+      () => setPendingDeleteId((p) => (p === doc.id ? null : p)),
+      3000
+    );
   };
 
   const fetchById = async (e: React.FormEvent) => {
@@ -425,9 +496,19 @@ export default function ShowcasePage() {
           <span className="bryl-pill">
             {(status?.network?.name ?? "polygon amoy").toLowerCase()} · testnet
           </span>
-          <span className={`bryl-pill ${apiKey ? "bryl-pill-inverted" : ""}`}>
-            {apiKey ? `key: ${apiKey.slice(0, 8)}…` : "api open"}
-          </span>
+          <button
+            type="button"
+            className={`bryl-pill cursor-pointer ${apiKey ? "bryl-pill-inverted" : ""}`}
+            onClick={() => loadApiKey(true)}
+            disabled={refreshingKey}
+            title="refresh — picks up a key generated or rotated on the dashboard"
+          >
+            {refreshingKey ? (
+              <span className="bryl-spin" />
+            ) : (
+              <>{apiKey ? `key: ${apiKey.slice(0, 8)}…` : "api open"} ↻</>
+            )}
+          </button>
         </header>
 
         {/* title */}
@@ -471,8 +552,9 @@ export default function ShowcasePage() {
             <section className="bryl-fade-up mt-6 sm:mt-8" style={fade(3)}>
               <h2 className="bryl-section-header mb-2 sm:mb-3">01 — try it</h2>
               <div className="bryl-card bryl-panel bg-white p-3 sm:p-4">
-                {/* collection picker */}
-                <div className="mb-3 flex flex-wrap items-center gap-2 sm:mb-4">
+                {/* collection: pick or create */}
+                <div className="mb-3 flex flex-wrap items-center gap-2 sm:mb-3.5">
+                  <span className="bryl-label w-20 shrink-0">collection</span>
                   {collections.length > 0 ? (
                     <select
                       className="bryl-select"
@@ -481,6 +563,7 @@ export default function ShowcasePage() {
                         setSelectedCollection(e.target.value);
                         setExpandedId(null);
                         setGetResult(null);
+                        setPendingDeleteId(null);
                         refreshDocuments(e.target.value);
                       }}
                       aria-label="collection"
@@ -492,14 +575,14 @@ export default function ShowcasePage() {
                       ))}
                     </select>
                   ) : (
-                    <span className="bryl-label normal-case">no collections yet —</span>
+                    <span className="bryl-label normal-case">none yet —</span>
                   )}
                   <form onSubmit={createCollection} className="flex items-center gap-2">
                     <input
                       className="bryl-input"
                       value={newColName}
                       onChange={(e) => setNewColName(e.target.value)}
-                      placeholder="new collection"
+                      placeholder="new collection name"
                     />
                     <button
                       type="submit"
@@ -512,18 +595,26 @@ export default function ShowcasePage() {
                           creating…
                         </>
                       ) : (
-                        "+ create"
+                        "create collection"
                       )}
                     </button>
                   </form>
+                </div>
+
+                {/* document: create in the selected collection */}
+                <div className="mb-4 flex flex-wrap items-center gap-2 border-t border-[var(--gray-200)] pt-3 sm:mb-5">
+                  <span className="bryl-label w-20 shrink-0">document</span>
                   <button
                     type="button"
-                    className="bryl-btn ml-auto"
+                    className="bryl-btn"
                     disabled={!selectedCollection}
                     onClick={openNew}
                   >
-                    + new document
+                    create document
                   </button>
+                  {!selectedCollection && (
+                    <span className="bryl-label normal-case">pick or create a collection first</span>
+                  )}
                 </div>
 
                 {/* create/edit form */}
@@ -721,15 +812,27 @@ export default function ShowcasePage() {
                               </button>
                               <button
                                 type="button"
-                                className="bryl-mono px-1 text-xs text-[var(--gray-400)] hover:text-red-600"
+                                className={`bryl-mono px-1 text-xs ${
+                                  pendingDeleteId === doc.id
+                                    ? "font-semibold text-red-600"
+                                    : "text-[var(--gray-400)] hover:text-red-600"
+                                }`}
                                 disabled={busyDocId === doc.id}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  deleteDoc(doc);
+                                  handleDeleteClick(doc);
                                 }}
-                                title="delete document"
+                                title={
+                                  pendingDeleteId === doc.id
+                                    ? "click again to confirm delete"
+                                    : "delete document"
+                                }
                               >
-                                {busyDocId === doc.id ? "…" : "✕"}
+                                {busyDocId === doc.id
+                                  ? "…"
+                                  : pendingDeleteId === doc.id
+                                    ? "sure?"
+                                    : "✕"}
                               </button>
                             </td>
                           </tr>
@@ -854,6 +957,20 @@ export default function ShowcasePage() {
           starboardb — self-hosted · one contract · any evm network
         </footer>
       </div>
+
+      {toast && (
+        <div
+          className="bryl-toast"
+          data-kind={toast.kind}
+          role="status"
+          aria-live="polite"
+          onClick={() => setToast(null)}
+          title="dismiss"
+        >
+          <span className="bryl-toast-mark">{toast.kind === "ok" ? "✓" : "✕"}</span>
+          {toast.text}
+        </div>
+      )}
     </div>
   );
 }

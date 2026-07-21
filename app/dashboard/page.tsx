@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { looseParse, coerceScalar } from "@/lib/looseJson";
 import type {
   CollectionInfo,
@@ -1679,8 +1680,11 @@ const { documents } = await res.json();`}
           )}
         </section>
 
-        <footer className="bryl-label mt-8 border-t border-[var(--gray-200)] pt-4 sm:mt-10">
-          starboardb — self-hosted · one contract · any evm network
+        <footer className="bryl-label mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--gray-200)] pt-4 sm:mt-10">
+          <span>starboardb — self-hosted · one contract · any evm network</span>
+          <Link href="/showcase" className="bryl-link bg-transparent normal-case">
+            api showcase →
+          </Link>
         </footer>
       </div>
 

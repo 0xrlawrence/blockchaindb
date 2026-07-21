@@ -305,3 +305,7 @@ All three are managed for you by the dashboard's setup wizard and settings
 tab. On Vercel, everything else (password, allowed domains, API key, custom
 encryption key) is dashboard-managed too — stored on-chain rather than in
 `.env.local`, since the filesystem there is read-only.
+
+## License
+
+[MIT](LICENSE)

@@ -7,9 +7,9 @@
 
   *The blockchain is your database.*
 
-  [![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/0xrlawrence/blockchaindb&env=PRIVATE_KEY&envDescription=%E2%9A%A0%20BETA%20%E2%80%94%20StarBoarDB%20is%20early%20software.%20Use%20a%20dedicated%20throwaway%20wallet%20key%2C%20never%20store%20confidential%20or%20sensitive%20data%2C%20and%20use%20entirely%20at%20your%20own%20risk.%20In%20return%3A%20a%20lifetime-free%20database.%20%7C%20Enter%20the%20wallet%20private%20key%20that%20signs%20writes.%20Everything%20else%20%28network%2C%20contract%2C%20API%20key%2C%20password%29%20is%20configured%20from%20the%20dashboard%20after%20deploying.%20Default%20network%3A%20Polygon%20Amoy%20%E2%80%94%20grab%20free%20test%20POL%20from%20the%20Amoy%20faucet%20first%20%28link%20%E2%86%92%29.&envLink=https%3A//faucet.polygon.technology/&project-name=starboardb&repository-name=starboardb)
+  [![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/0xrlawrence/StarBoarDB&env=PRIVATE_KEY&envDescription=%E2%9A%A0%20BETA%20%E2%80%94%20StarBoarDB%20is%20early%20software.%20Use%20a%20dedicated%20throwaway%20wallet%20key%2C%20never%20store%20confidential%20or%20sensitive%20data%2C%20and%20use%20entirely%20at%20your%20own%20risk.%20In%20return%3A%20a%20lifetime-free%20database.%20%7C%20Enter%20the%20wallet%20private%20key%20that%20signs%20writes.%20Everything%20else%20%28network%2C%20contract%2C%20API%20key%2C%20password%29%20is%20configured%20from%20the%20dashboard%20after%20deploying.%20Default%20network%3A%20Polygon%20Amoy%20%E2%80%94%20grab%20free%20test%20POL%20from%20the%20Amoy%20faucet%20first%20%28link%20%E2%86%92%29.&envLink=https%3A//faucet.polygon.technology/&project-name=starboardb&repository-name=starboardb)
 
-  *(replace `0xrlawrence/blockchaindb` with your own fork's URL first)*
+  [Live demo →](https://starboardb16.vercel.app/) &nbsp;·&nbsp; password: `appbuilders`
 </div>
 
 ---
@@ -74,7 +74,7 @@ fully either way.
 **Step 1 — Clone the repository.**
 
 ```bash
-git clone <this-repo> && cd blockchaindb
+git clone https://github.com/0xrlawrence/StarBoarDB.git && cd StarBoarDB
 ```
 
 **Step 2 — Install dependencies.**

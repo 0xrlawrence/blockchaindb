@@ -269,7 +269,7 @@ recompile with `npm run compile` (plain solc — no framework) and redeploy.
 ## Environment Variables
 
 ```
-RPC_URL=            # defaults to https://rpc-amoy.polygon.technology
+RPC_URL=            # defaults to https://polygon-amoy-bor-rpc.publicnode.com
 PRIVATE_KEY=        # wallet that owns the contract (signs every write)
 CONTRACT_ADDRESS=   # filled by deploy (Settings button or npm run deploy)
 ```

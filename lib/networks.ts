@@ -18,7 +18,7 @@ export const NETWORKS: NetworkPreset[] = [
     id: "polygon-amoy",
     name: "Polygon Amoy",
     chainId: 80002,
-    rpcUrl: "https://rpc-amoy.polygon.technology",
+    rpcUrl: "https://polygon-amoy-bor-rpc.publicnode.com",
     explorerUrl: "https://amoy.polygonscan.com",
     currency: "POL",
     testnet: true,

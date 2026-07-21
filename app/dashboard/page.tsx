@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { looseParse, coerceScalar } from "@/lib/looseJson";
 import type {
   CollectionInfo,
@@ -74,6 +74,23 @@ export default function DashboardPage() {
     text: string;
     txHash?: string | null;
   } | null>(null);
+
+  // Transient toast for lightweight confirmations (e.g. api key rotated).
+  const [toast, setToast] = useState<{ kind: "ok" | "error"; text: string } | null>(
+    null
+  );
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = useCallback(
+    (text: string, kind: "ok" | "error" = "ok") => {
+      setToast({ text, kind });
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(null), 2600);
+    },
+    []
+  );
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
 
   // workspace
   const [tab, setTab] = useState<Tab>("documents");
@@ -468,6 +485,7 @@ export default function DashboardPage() {
 
   // Generate or rotate the data-API key. Rotating invalidates the old key.
   const rotateApiKey = async () => {
+    const wasSet = Boolean(apiKey);
     setApiKeyBusy(true);
     setMsg(null);
     try {
@@ -479,12 +497,14 @@ export default function DashboardPage() {
       const body = await readJson(res);
       if (!res.ok) throw new Error(body.error ?? "Could not generate key");
       setApiKey(body.apiKey ?? null);
-      setMsg({ kind: "ok", text: "api key generated — copy it now" });
+      showToast(
+        wasSet ? "api key rotated — old key revoked" : "api key generated"
+      );
     } catch (err) {
-      setMsg({
-        kind: "error",
-        text: err instanceof Error ? err.message : "key generation failed",
-      });
+      showToast(
+        err instanceof Error ? err.message : "key generation failed",
+        "error"
+      );
     } finally {
       setApiKeyBusy(false);
     }
@@ -502,12 +522,12 @@ export default function DashboardPage() {
       const body = await readJson(res);
       if (!res.ok) throw new Error(body.error ?? "Could not remove key");
       setApiKey(null);
-      setMsg({ kind: "ok", text: "api key removed" });
+      showToast("api key removed — data api is open again");
     } catch (err) {
-      setMsg({
-        kind: "error",
-        text: err instanceof Error ? err.message : "could not remove key",
-      });
+      showToast(
+        err instanceof Error ? err.message : "could not remove key",
+        "error"
+      );
     } finally {
       setApiKeyBusy(false);
     }
@@ -711,19 +731,19 @@ export default function DashboardPage() {
           <span className="bryl-pill">
             {(net?.name ?? "polygon amoy").toLowerCase()} · testnet
           </span>
-          {status?.contract?.address && (
+          {status?.wallet?.address && (
             <button
               type="button"
               className="bryl-pill cursor-pointer"
-              onClick={() => copy(status.contract!.address)}
-              title="copy contract address"
+              onClick={() => copy(status.wallet!.address)}
+              title="copy wallet address"
             >
-              {copied === status.contract.address ? (
+              {copied === status.wallet.address ? (
                 <span className="bryl-copied">copied ✓</span>
               ) : (
                 <>
-                  {status.contract.address.slice(0, 6)}…
-                  {status.contract.address.slice(-4)}
+                  {status.wallet.address.slice(0, 6)}…
+                  {status.wallet.address.slice(-4)}
                 </>
               )}
             </button>
@@ -1663,6 +1683,20 @@ const { documents } = await res.json();`}
           starboardb — self-hosted · one contract · any evm network
         </footer>
       </div>
+
+      {toast && (
+        <div
+          className="bryl-toast"
+          data-kind={toast.kind}
+          role="status"
+          aria-live="polite"
+          onClick={() => setToast(null)}
+          title="dismiss"
+        >
+          <span className="bryl-toast-mark">{toast.kind === "ok" ? "✓" : "✕"}</span>
+          {toast.text}
+        </div>
+      )}
     </div>
   );
 }

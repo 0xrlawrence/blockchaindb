@@ -8,7 +8,7 @@ import { writeEnvFile } from "../lib/envfile.mjs";
 
 dotenv.config({ path: ".env.local" });
 
-const DEFAULT_RPC = "https://rpc-amoy.polygon.technology"; // Polygon Amoy
+const DEFAULT_RPC = "https://polygon-amoy-bor-rpc.publicnode.com"; // Polygon Amoy
 
 async function main() {
   const rpcUrl = (process.env.RPC_URL ?? "").trim() || DEFAULT_RPC;

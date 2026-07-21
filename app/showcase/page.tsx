@@ -116,7 +116,14 @@ export default function ShowcasePage() {
     }
   };
 
-  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+  // Set after mount (not read inline from `window` during render), so the
+  // server-prerendered markup and the first client render match — this is
+  // shown unconditionally in section 00, unlike the dashboard's equivalent
+  // which only renders once the settings tab is opened.
+  const [baseUrl, setBaseUrl] = useState("");
+  useEffect(() => {
+    setBaseUrl(window.location.origin);
+  }, []);
 
   // Every call here is logged verbatim — same endpoint, headers and body an
   // external integrator would send. Reads apiKey from a ref, not state, so

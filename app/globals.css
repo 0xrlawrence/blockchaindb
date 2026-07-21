@@ -74,33 +74,6 @@ body {
   --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
-/* Interactive surfaces: instant press feedback + specified-property
-   transitions (never `transition: all`). */
-.pressable {
-  transition:
-    transform 160ms var(--ease-out-strong),
-    color 150ms ease,
-    background-color 150ms ease,
-    border-color 150ms ease;
-}
-.pressable:active {
-  transform: scale(0.97);
-}
-
-/* Staggered entrance: rise + fade, never from nothing. `backwards` fill
-   (not `forwards`) so the finished animation stops applying and :active
-   transforms still work. Delay via --rise-delay index, 40ms apart. */
-.rise {
-  animation: rise-in 300ms var(--ease-out-strong) backwards;
-  animation-delay: calc(var(--rise-delay, 0) * 40ms);
-}
-@keyframes rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-
 /* Loading skeleton with a shimmer sweep (linear: constant motion) */
 .skeleton {
   position: relative;
@@ -143,13 +116,6 @@ body {
 
 /* Reduced motion: keep opacity fades that aid comprehension, drop movement */
 @media (prefers-reduced-motion: reduce) {
-  .pressable:active {
-    transform: none;
-  }
-  .rise {
-    animation: fade-in 200ms ease backwards;
-    animation-delay: 0ms;
-  }
   .skeleton::after {
     animation: none;
   }
@@ -166,8 +132,7 @@ body {
 /* ---- bryl-minimal dashboard theme ----
    Monochrome ramp (true black on white), four font roles (Geist / Geist
    Mono / Geist Pixel), hairline wireframe borders, halftone dot texture,
-   inverted-pill emphasis. Scoped to .bryl so other routes keep the dark
-   Supabase-like chrome. From github.com/bryllim/bryl-minimal-design. */
+   inverted-pill emphasis. From github.com/bryllim/bryl-minimal-design. */
 .bryl {
   --bg: #ffffff;
   --ink: #0a0a0a;

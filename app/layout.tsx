@@ -3,7 +3,6 @@ import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { GeistPixelSquare } from "geist/font/pixel";
 import "./globals.css";
-import AppShell from "@/components/AppShell";
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -29,9 +28,7 @@ export default function RootLayout({
       lang="en"
       className={`${GeistSans.variable} ${GeistMono.variable} ${GeistPixelSquare.variable}`}
     >
-      <body>
-        <AppShell>{children}</AppShell>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

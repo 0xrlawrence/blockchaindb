@@ -7,11 +7,13 @@ import Navbar from "./Navbar";
 /**
  * Routes get the dashboard chrome (sidebar + navbar); the landing page at "/"
  * renders bare so the scroll-world engine owns the whole viewport, and
- * "/dashboard" renders bare as a unified single page with its own navigation.
+ * "/dashboard" and "/showcase" render bare as unified single pages with
+ * their own navigation.
  */
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  if (pathname === "/" || pathname === "/dashboard") return <>{children}</>;
+  if (pathname === "/" || pathname === "/dashboard" || pathname === "/showcase")
+    return <>{children}</>;
 
   return (
     <div className="app-shell flex min-h-screen bg-base text-ink">

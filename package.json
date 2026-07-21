@@ -11,16 +11,13 @@
     "deploy": "node scripts/deploy.mjs"
   },
   "dependencies": {
-    "@react-three/fiber": "^9.6.1",
-    "@react-three/postprocessing": "^3.0.4",
     "dotenv": "^16.4.5",
     "ethers": "^6.13.4",
     "geist": "^1.7.2",
     "next": "^15.3.0",
-    "postprocessing": "^6.39.2",
+    "ogl": "^1.0.11",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "three": "^0.185.1"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

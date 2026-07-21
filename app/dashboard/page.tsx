@@ -769,6 +769,13 @@ export default function DashboardPage() {
               lock
             </button>
           )}
+          <Link
+            href="/showcase"
+            className="bryl-pill bryl-pill-inverted ml-auto cursor-pointer sm:ml-0"
+            title="live console for the data api"
+          >
+            api showcase →
+          </Link>
         </header>
 
         {/* title */}
@@ -1680,11 +1687,8 @@ const { documents } = await res.json();`}
           )}
         </section>
 
-        <footer className="bryl-label mt-8 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--gray-200)] pt-4 sm:mt-10">
-          <span>starboardb — self-hosted · one contract · any evm network</span>
-          <Link href="/showcase" className="bryl-link bg-transparent normal-case">
-            api showcase →
-          </Link>
+        <footer className="bryl-label mt-8 border-t border-[var(--gray-200)] pt-4 sm:mt-10">
+          starboardb — self-hosted · one contract · any evm network
         </footer>
       </div>
 
